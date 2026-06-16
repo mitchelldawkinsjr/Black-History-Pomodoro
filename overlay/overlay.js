@@ -1,65 +1,120 @@
-// Placeholder overlay logic — p5.js paint sketch will plug in here (Phase 2).
+import { createPaintSketch } from './paint-sketch.js';
 
-const canvas = document.getElementById('paint-canvas');
 const promptCard = document.getElementById('prompt-card');
 const promptText = document.getElementById('prompt-text');
+const promptType = document.getElementById('prompt-type');
+const container = document.getElementById('paint-container');
 
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+const sketch = createPaintSketch(container, {
+  onPaintInComplete: () => {
+    notifyBackground('PAINT_IN_DONE');
+  },
+  onPaintOutComplete: () => {
+    notifyBackground('PAINT_OUT_DONE');
+  },
+  onReady: () => {
+    signalReady();
+  },
+});
+
+function getApi() {
+  return sketch.getApi();
 }
 
-function drawPlaceholder(label) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
+function signalReady() {
+  window.parent.postMessage(
+    { source: 'paint-pomodoro', event: 'READY' },
+    '*',
+  );
+}
+
+function showPrompt(prompt) {
+  if (!prompt) {
     return;
   }
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'rgba(196, 92, 74, 0.35)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.font = '24px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(label, canvas.width / 2, canvas.height / 2);
-}
-
-function showPrompt(text) {
-  promptText.textContent = text;
+  promptType.textContent = prompt.type ?? 'rest';
+  promptText.textContent = prompt.text ?? '';
   promptCard.hidden = false;
 }
 
 function hidePrompt() {
   promptCard.hidden = true;
   promptText.textContent = '';
+  promptType.textContent = '';
 }
 
-window.addEventListener('resize', () => {
-  resizeCanvas();
-  drawPlaceholder('Paint overlay placeholder');
-});
+function notifyBackground(type) {
+  chrome.runtime.sendMessage({ type }).catch(() => {
+    // Background may be asleep briefly.
+  });
+}
 
-resizeCanvas();
-drawPlaceholder('Paint overlay placeholder');
+async function waitForApi(maxAttempts = 120) {
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const api = getApi();
+    if (api?.startPaintIn) {
+      return api;
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  return null;
+}
 
-// Listen for commands from the content script / background (Phase 2).
-window.addEventListener('message', (event) => {
-  const { type, prompt } = event.data ?? {};
+async function handleCommand(command, payload = {}) {
+  const api = await waitForApi();
+  if (!api) {
+    console.error('[PaintPomodoro overlay] Sketch API not ready');
+    return;
+  }
 
-  switch (type) {
+  switch (command) {
+    case 'PING':
+      signalReady();
+      break;
+    case 'RESIZE':
+      sketch.instance?.windowResized?.();
+      break;
     case 'PAINT_IN':
-      drawPlaceholder('Paint in…');
+      hidePrompt();
+      api.startPaintIn();
       break;
     case 'PAINT_OUT':
-      drawPlaceholder('Paint out…');
       hidePrompt();
+      api.startPaintOut();
       break;
     case 'SHOW_PROMPT':
-      showPrompt(prompt?.text ?? '');
+      showPrompt(payload.prompt);
+      break;
+    case 'PAUSE':
+      api.pause();
+      break;
+    case 'RESUME':
+      api.resume();
+      break;
+    case 'RESET':
+      hidePrompt();
+      api.reset();
       break;
     default:
       break;
   }
+}
+
+window.addEventListener('message', (event) => {
+  if (event.data?.source !== 'paint-pomodoro') {
+    return;
+  }
+  handleCommand(event.data.command, event.data);
 });
 
-export { drawPlaceholder, hidePrompt, showPrompt };
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'OVERLAY_COMMAND') {
+    handleCommand(message.command, message);
+  }
+});
+
+waitForApi().then((api) => {
+  if (api) {
+    signalReady();
+  }
+});

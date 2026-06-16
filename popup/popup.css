@@ -92,6 +92,22 @@ body {
   background: #ddd4c8;
 }
 
+.test-section {
+  margin-bottom: 20px;
+}
+
+.btn-test {
+  width: 100%;
+  background: transparent;
+  color: #8b7355;
+  border: 1px dashed #c9bfb3;
+}
+
+.btn-test:hover {
+  background: #f3ede6;
+  border-color: #b0a89a;
+}
+
 .tasks-section {
   border-top: 1px solid #e8e0d6;
   padding-top: 16px;

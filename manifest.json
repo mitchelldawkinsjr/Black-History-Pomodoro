@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Paint Pomodoro",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A Pomodoro timer that covers your screen in watercolor when it's time to rest.",
   "icons": {
     "16": "assets/icons/icon16.png",
@@ -32,7 +32,14 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["overlay/overlay.html", "overlay/overlay.js", "overlay/overlay.css"],
+      "resources": [
+        "overlay/overlay.html",
+        "overlay/overlay.js",
+        "overlay/overlay.css",
+        "overlay/paint-sketch.js",
+        "lib/p5.min.js",
+        "data/prompts.json"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

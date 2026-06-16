@@ -9,6 +9,7 @@ const timerEl = document.getElementById('timer');
 const timerHintEl = document.getElementById('timer-hint');
 const btnPrimary = document.getElementById('btn-primary');
 const btnSecondary = document.getElementById('btn-secondary');
+const btnActivate = document.getElementById('btn-activate');
 
 let currentState = null;
 let tickInterval = null;
@@ -23,6 +24,12 @@ function formatTime(ms) {
 function getDisplayRemainingMs(state) {
   if (state.phase === PHASE.IDLE) {
     return state.settings.focusMinutes * 60 * 1000;
+  }
+  if (
+    state.phase === PHASE.PAINTING_IN ||
+    state.phase === PHASE.PAINTING_OUT
+  ) {
+    return 0;
   }
   if (state.pausedAt !== null && state.remainingMs !== null) {
     return state.remainingMs;
@@ -43,6 +50,8 @@ function render(state) {
   phaseLabelEl.textContent = isPaused
     ? `${getPhaseLabel(state.phase)} (paused)`
     : getPhaseLabel(state.phase);
+
+  btnPrimary.hidden = false;
   timerEl.textContent = formatTime(remainingMs);
 
   btnSecondary.hidden = state.phase === PHASE.IDLE;
@@ -68,10 +77,28 @@ function render(state) {
     return;
   }
 
+  if (state.phase === PHASE.PAINTING_IN) {
+    timerEl.textContent = '…';
+    timerHintEl.textContent = 'Watercolor is spreading across your screen.';
+    btnPrimary.textContent = 'Pause';
+    btnPrimary.dataset.action = 'pause';
+    btnPrimary.hidden = true;
+    return;
+  }
+
+  btnPrimary.hidden = false;
+
   if (state.phase === PHASE.RESTING) {
     timerHintEl.textContent = 'Take a real break away from the screen.';
     btnPrimary.textContent = 'Skip break';
     btnPrimary.dataset.action = 'skip';
+    return;
+  }
+
+  if (state.phase === PHASE.PAINTING_OUT) {
+    timerEl.textContent = '…';
+    timerHintEl.textContent = 'Paint is lifting — your screen returns soon.';
+    btnPrimary.hidden = true;
   }
 }
 
@@ -80,6 +107,7 @@ async function sendMessage(type) {
   if (response?.ok) {
     render(response.state);
   }
+  return response;
 }
 
 function startTicking() {
@@ -118,6 +146,13 @@ btnPrimary.addEventListener('click', async () => {
 
 btnSecondary.addEventListener('click', async () => {
   await sendMessage(MESSAGE.RESET);
+});
+
+btnActivate.addEventListener('click', async () => {
+  const response = await sendMessage(MESSAGE.ACTIVATE);
+  if (response?.error) {
+    timerHintEl.textContent = response.error;
+  }
 });
 
 chrome.runtime.onMessage.addListener((message) => {

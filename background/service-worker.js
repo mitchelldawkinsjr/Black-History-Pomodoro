@@ -1,6 +1,7 @@
 import {
   ALARM,
   MESSAGE,
+  OVERLAY,
   PHASE,
   createDefaultState,
   getPhaseDurationMs,
@@ -8,8 +9,10 @@ import {
 } from './state.js';
 
 const STORAGE_KEY = 'paintPomodoroState';
+const PROMPTS_URL = chrome.runtime.getURL('data/prompts.json');
 
 let state = createDefaultState();
+let promptsCache = null;
 
 async function loadState() {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
@@ -59,7 +62,169 @@ async function setState(nextState) {
   await broadcastState();
 }
 
+async function getPrompts() {
+  if (promptsCache) {
+    return promptsCache;
+  }
+  const response = await fetch(PROMPTS_URL);
+  promptsCache = await response.json();
+  return promptsCache;
+}
+
+async function pickRandomPrompt() {
+  const prompts = await getPrompts();
+  if (!prompts.length) {
+    return { type: 'action', text: 'Step away from the screen and rest your eyes.' };
+  }
+  return prompts[Math.floor(Math.random() * prompts.length)];
+}
+
+async function getActiveBrowsableTab() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!tab?.id || !tab.url) {
+    return null;
+  }
+  if (
+    tab.url.startsWith('chrome://') ||
+    tab.url.startsWith('chrome-extension://') ||
+    tab.url.startsWith('edge://') ||
+    tab.url.startsWith('about:')
+  ) {
+    return null;
+  }
+  return tab;
+}
+
+function isBrowsableUrl(url) {
+  return (
+    url &&
+    !url.startsWith('chrome://') &&
+    !url.startsWith('chrome-extension://') &&
+    !url.startsWith('edge://') &&
+    !url.startsWith('about:')
+  );
+}
+
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+    return true;
+  } catch {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content/inject-overlay.js'],
+      });
+      await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+      return true;
+    } catch (error) {
+      console.warn('[PaintPomodoro] Could not inject into tab', tabId, error);
+      return false;
+    }
+  }
+}
+
+async function sendToTab(tabId, message) {
+  if (!(await ensureContentScript(tabId))) {
+    return false;
+  }
+  try {
+    await chrome.tabs.sendMessage(tabId, message);
+    return true;
+  } catch (error) {
+    console.warn('[PaintPomodoro] Message failed for tab', tabId, error);
+    return false;
+  }
+}
+
+async function sendToAllTabs(message) {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (!tab.id || !isBrowsableUrl(tab.url)) {
+        return;
+      }
+      await sendToTab(tab.id, message);
+    }),
+  );
+}
+
+async function sendOverlayToTargets(message) {
+  const activeTab = await getActiveBrowsableTab();
+  if (activeTab?.id && (await sendToTab(activeTab.id, message))) {
+    return true;
+  }
+
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  for (const tab of tabs) {
+    if (tab.id && isBrowsableUrl(tab.url) && (await sendToTab(tab.id, message))) {
+      return true;
+    }
+  }
+
+  await sendToAllTabs(message);
+  return false;
+}
+
+async function showOverlayOnAllTabs() {
+  await sendOverlayToTargets({ type: OVERLAY.SHOW });
+}
+
+async function hideOverlayOnAllTabs() {
+  await sendOverlayToTargets({ type: OVERLAY.HIDE });
+}
+
+async function sendOverlayCommand(command, payload = {}) {
+  await sendOverlayToTargets({
+    type: OVERLAY.COMMAND,
+    command,
+    ...payload,
+  });
+}
+
+async function beginPaintIn() {
+  await setState({
+    ...state,
+    phase: PHASE.PAINTING_IN,
+    phaseStartedAt: Date.now(),
+    pausedAt: null,
+    remainingMs: null,
+  });
+  await clearAlarm();
+  return sendOverlayToTargets({
+    type: OVERLAY.COMMAND,
+    command: 'PAINT_IN',
+  });
+}
+
+async function beginRestBreak() {
+  const prompt = await pickRandomPrompt();
+  await setState({
+    ...state,
+    phase: PHASE.RESTING,
+    phaseStartedAt: Date.now(),
+    pausedAt: null,
+    remainingMs: null,
+  });
+  await sendOverlayCommand('SHOW_PROMPT', { prompt });
+  await schedulePhaseEndAlarm();
+}
+
+async function beginPaintOut() {
+  await setState({
+    ...state,
+    phase: PHASE.PAINTING_OUT,
+    phaseStartedAt: Date.now(),
+    pausedAt: null,
+    remainingMs: null,
+  });
+  await clearAlarm();
+  await sendOverlayCommand('PAINT_OUT');
+}
+
 async function startFocus() {
+  await hideOverlayOnAllTabs();
+  await sendOverlayCommand('RESET');
   await setState({
     ...state,
     phase: PHASE.FOCUSING,
@@ -70,24 +235,19 @@ async function startFocus() {
   await schedulePhaseEndAlarm();
 }
 
-async function startBreak() {
-  await setState({
-    ...state,
-    phase: PHASE.RESTING,
-    phaseStartedAt: Date.now(),
-    pausedAt: null,
-    remainingMs: null,
-  });
-  await schedulePhaseEndAlarm();
-}
-
 async function pauseTimer() {
-  if (state.phase === PHASE.IDLE || state.pausedAt !== null) {
+  if (
+    state.phase === PHASE.IDLE ||
+    state.phase === PHASE.PAINTING_IN ||
+    state.phase === PHASE.PAINTING_OUT ||
+    state.pausedAt !== null
+  ) {
     return;
   }
 
   const remainingMs = getRemainingMs(state);
   await clearAlarm();
+  await sendOverlayCommand('PAUSE');
   await setState({
     ...state,
     pausedAt: Date.now(),
@@ -106,11 +266,14 @@ async function resumeTimer() {
     pausedAt: null,
     remainingMs: null,
   });
+  await sendOverlayCommand('RESUME');
   await schedulePhaseEndAlarm();
 }
 
 async function resetTimer() {
   await clearAlarm();
+  await hideOverlayOnAllTabs();
+  await sendOverlayCommand('RESET');
   await setState(createDefaultState());
 }
 
@@ -118,7 +281,7 @@ async function skipBreak() {
   if (state.phase !== PHASE.RESTING) {
     return;
   }
-  await startFocus();
+  await beginPaintOut();
 }
 
 async function handlePhaseEnd() {
@@ -127,20 +290,32 @@ async function handlePhaseEnd() {
   }
 
   if (state.phase === PHASE.FOCUSING) {
-    // Paint overlay will hook in here in a later phase.
-    console.log('[PaintPomodoro] Focus complete — break starting');
-    await startBreak();
+    await beginPaintIn();
     return;
   }
 
   if (state.phase === PHASE.RESTING) {
-    console.log('[PaintPomodoro] Break complete — focus starting');
-    await startFocus();
+    await beginPaintOut();
   }
+}
+
+async function handlePaintInDone() {
+  if (state.phase !== PHASE.PAINTING_IN) {
+    return;
+  }
+  await beginRestBreak();
+}
+
+async function handlePaintOutDone() {
+  if (state.phase !== PHASE.PAINTING_OUT) {
+    return;
+  }
+  await startFocus();
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM.PHASE_END) {
+    await loadState();
     await handlePhaseEnd();
   }
 });
@@ -167,7 +342,7 @@ async function handleMessage(message) {
       return { ok: true, state: getPublicState() };
 
     case MESSAGE.START_BREAK:
-      await startBreak();
+      await beginRestBreak();
       return { ok: true, state: getPublicState() };
 
     case MESSAGE.PAUSE:
@@ -186,6 +361,26 @@ async function handleMessage(message) {
       await skipBreak();
       return { ok: true, state: getPublicState() };
 
+    case MESSAGE.ACTIVATE: {
+      const delivered = await beginPaintIn();
+      return {
+        ok: true,
+        delivered,
+        state: getPublicState(),
+        error: delivered
+          ? undefined
+          : 'Could not reach a webpage tab. Open a normal site (not chrome://) and try again.',
+      };
+    }
+
+    case MESSAGE.PAINT_IN_DONE:
+      await handlePaintInDone();
+      return { ok: true, state: getPublicState() };
+
+    case MESSAGE.PAINT_OUT_DONE:
+      await handlePaintOutDone();
+      return { ok: true, state: getPublicState() };
+
     default:
       return { ok: false, error: `Unknown message type: ${message.type}` };
   }
@@ -193,13 +388,30 @@ async function handleMessage(message) {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await loadState();
-  if (state.phase !== PHASE.IDLE && state.pausedAt === null) {
-    await schedulePhaseEndAlarm();
+  if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
+    if (state.pausedAt === null) {
+      await schedulePhaseEndAlarm();
+    }
+  }
+  if (state.phase === PHASE.PAINTING_IN) {
+    await showOverlayOnAllTabs();
+    await sendOverlayCommand('PAINT_IN');
+  }
+  if (state.phase === PHASE.RESTING) {
+    await showOverlayOnAllTabs();
+    const prompt = await pickRandomPrompt();
+    await sendOverlayCommand('SHOW_PROMPT', { prompt });
+  }
+  if (state.phase === PHASE.PAINTING_OUT) {
+    await showOverlayOnAllTabs();
+    await sendOverlayCommand('PAINT_OUT');
   }
 });
 
 loadState().then(async () => {
-  if (state.phase !== PHASE.IDLE && state.pausedAt === null) {
-    await schedulePhaseEndAlarm();
+  if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
+    if (state.pausedAt === null) {
+      await schedulePhaseEndAlarm();
+    }
   }
 });

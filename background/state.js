@@ -1,7 +1,9 @@
 export const PHASE = {
   IDLE: 'idle',
   FOCUSING: 'focusing',
+  PAINTING_IN: 'painting_in',
   RESTING: 'resting',
+  PAINTING_OUT: 'painting_out',
 };
 
 export const ALARM = {
@@ -17,11 +19,22 @@ export const MESSAGE = {
   RESUME: 'RESUME',
   RESET: 'RESET',
   SKIP_BREAK: 'SKIP_BREAK',
+  ACTIVATE: 'ACTIVATE',
+  PAINT_IN_DONE: 'PAINT_IN_DONE',
+  PAINT_OUT_DONE: 'PAINT_OUT_DONE',
+};
+
+export const OVERLAY = {
+  SHOW: 'OVERLAY_SHOW',
+  HIDE: 'OVERLAY_HIDE',
+  COMMAND: 'OVERLAY_COMMAND',
 };
 
 export const DEFAULT_SETTINGS = {
   focusMinutes: 25,
   breakMinutes: 5,
+  paintInSeconds: 25,
+  paintOutSeconds: 25,
 };
 
 export function createDefaultState() {
@@ -51,6 +64,13 @@ export function getRemainingMs(state, now = Date.now()) {
     return 0;
   }
 
+  if (
+    state.phase === PHASE.PAINTING_IN ||
+    state.phase === PHASE.PAINTING_OUT
+  ) {
+    return 0;
+  }
+
   if (state.pausedAt !== null && state.remainingMs !== null) {
     return state.remainingMs;
   }
@@ -64,8 +84,12 @@ export function getPhaseLabel(phase) {
   switch (phase) {
     case PHASE.FOCUSING:
       return 'Focus session';
+    case PHASE.PAINTING_IN:
+      return 'Paint spreading…';
     case PHASE.RESTING:
       return 'Rest break';
+    case PHASE.PAINTING_OUT:
+      return 'Paint lifting…';
     default:
       return 'Ready';
   }
