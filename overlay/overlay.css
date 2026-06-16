@@ -1,0 +1,48 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+#overlay-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+#paint-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#prompt-card {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(420px, 90vw);
+  padding: 24px 28px;
+  border-radius: 16px;
+  background: rgba(255, 252, 247, 0.92);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: #1f2933;
+  text-align: center;
+}
+
+#prompt-card[hidden] {
+  display: none;
+}

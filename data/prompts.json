@@ -1,0 +1,22 @@
+[
+  {
+    "type": "action",
+    "text": "Stand up and look out a window for 60 seconds."
+  },
+  {
+    "type": "question",
+    "text": "What did you accomplish in the last focus session?"
+  },
+  {
+    "type": "fact",
+    "text": "Your eyes blink less when staring at screens — rest them now."
+  },
+  {
+    "type": "action",
+    "text": "Do ten shoulder rolls and take three slow breaths."
+  },
+  {
+    "type": "question",
+    "text": "What is one thing you want to tackle in the next session?"
+  }
+]

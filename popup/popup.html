@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paint Pomodoro</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="header">
+        <h1 class="title">Paint Pomodoro</h1>
+        <p class="phase-label" id="phase-label">Ready</p>
+      </header>
+
+      <section class="timer-section" aria-live="polite">
+        <div class="timer" id="timer">25:00</div>
+        <p class="timer-hint" id="timer-hint">Start a focus session when you're ready.</p>
+      </section>
+
+      <section class="controls">
+        <button type="button" class="btn btn-primary" id="btn-primary">Start focus</button>
+        <button type="button" class="btn btn-secondary" id="btn-secondary" hidden>Reset</button>
+      </section>
+
+      <section class="tasks-section">
+        <div class="section-heading">
+          <h2>Today's tasks</h2>
+          <span class="badge">Coming soon</span>
+        </div>
+        <ul class="task-list" id="task-list">
+          <li class="task-placeholder">Task list will live here.</li>
+        </ul>
+      </section>
+
+      <footer class="footer">
+        <span class="version">v0.1.0 skeleton</span>
+      </footer>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
