@@ -17,8 +17,13 @@ const sketch = createPaintSketch(container, {
     }
     chrome.runtime.sendMessage({ type: 'PAINT_IN_DONE' }).catch(() => {});
   },
+  onPaintOutProgress: (opacity) => {
+    setOverlayFade(opacity);
+  },
   onPaintOutComplete: () => {
+    setOverlayFade(0);
     hideRevealHud();
+    requestOverlayHide();
     chrome.runtime.sendMessage({ type: 'PAINT_OUT_DONE' }).catch(() => {});
   },
   onReady: () => {
@@ -33,6 +38,22 @@ function getApi() {
 function signalReady() {
   window.parent.postMessage(
     { source: 'paint-pomodoro', event: 'READY' },
+    '*',
+  );
+}
+
+function requestOverlayHide() {
+  window.parent.postMessage(
+    { source: 'paint-pomodoro', event: 'HIDE' },
+    '*',
+  );
+}
+
+function setOverlayFade(opacity) {
+  const clamped = Math.max(0, Math.min(1, opacity));
+  revealHud.style.opacity = String(clamped);
+  window.parent.postMessage(
+    { source: 'paint-pomodoro', event: 'FADE', opacity: clamped },
     '*',
   );
 }
@@ -71,6 +92,7 @@ function showRevealHud(payload = {}) {
   breakEndAt = Date.now() + (payload.breakDurationMs ?? 5 * 60 * 1000);
   updateRevealTimer();
   revealHud.hidden = false;
+  revealHud.style.opacity = '1';
 
   if (hudInterval) {
     clearInterval(hudInterval);
@@ -80,6 +102,7 @@ function showRevealHud(payload = {}) {
 
 function hideRevealHud() {
   revealHud.hidden = true;
+  revealHud.style.opacity = '1';
   breakEndAt = null;
   if (hudInterval) {
     clearInterval(hudInterval);
@@ -137,7 +160,7 @@ async function handleCommand(command, payload = {}) {
       await startBreakPaint(payload);
       break;
     case 'PAINT_OUT':
-      hideRevealHud();
+      setOverlayFade(1);
       api.startPaintOut();
       break;
     case 'PAUSE':

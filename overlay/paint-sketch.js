@@ -10,10 +10,10 @@ import { createWatercolorTools } from './watercolor.js';
 import { createColorAgents } from './color-agents.js';
 
 const DEFAULT_PAINT_MS = 20 * 1000;
-const PAINT_OUT_MS = 25000;
+const PAINT_OUT_MS = 4200;
 const MAX_FALLBACK_POOLS = 64;
 
-export function createPaintSketch(container, { onPaintInComplete, onPaintOutComplete, onReady } = {}) {
+export function createPaintSketch(container, { onPaintInComplete, onPaintOutComplete, onPaintOutProgress, onReady } = {}) {
   const api = {};
 
   const instance = new p5((p) => {
@@ -38,6 +38,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let paintedMarkCount = 0;
     let previousCanvasImage = null;
     let paperFade = 1;
+    let overlayOpacity = 1;
 
     function getArtworkImageUrl(artwork) {
       return artwork?.primaryImage || artwork?.primaryImageSmall || null;
@@ -74,6 +75,14 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     function updatePaperFade(elapsed) {
       const raw = p.min(1, elapsed / getPaperFadeMs());
       paperFade = p.pow(raw, 0.72);
+    }
+
+    function updatePaintOutFade(elapsed) {
+      const progress = p.min(1, elapsed / PAINT_OUT_MS);
+      const remaining = p.pow(1 - progress, 0.82);
+      overlayOpacity = remaining;
+      paperFade = remaining;
+      onPaintOutProgress?.(remaining);
     }
 
     function flattenWashForExport() {
@@ -228,20 +237,26 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     function drawComposite() {
       p.clear();
 
+      if (overlayOpacity <= 0.001) {
+        return;
+      }
+
       if (paperFade > 0) {
         p.noStroke();
-        p.fill(255, 255, 255, paperFade * 255);
+        p.fill(255, 255, 255, paperFade * overlayOpacity * 255);
         p.rect(0, 0, p.width, p.height);
       }
 
       if (previousCanvasImage && paperFade > 0) {
-        p.tint(255, paperFade * 255);
+        p.tint(255, paperFade * overlayOpacity * 255);
         p.image(previousCanvasImage, 0, 0, p.width, p.height);
         p.noTint();
       }
 
       if (wash) {
+        p.tint(255, overlayOpacity * 255);
         p.image(wash, 0, 0);
+        p.noTint();
       }
     }
 
@@ -276,7 +291,12 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
         return;
       }
       finishedPaintOut = true;
+      overlayOpacity = 0;
+      paperFade = 0;
       mode = 'idle';
+      p.clear();
+      p.noLoop();
+      onPaintOutProgress?.(0);
       onPaintOutComplete?.();
     }
 
@@ -358,32 +378,13 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       if (mode === 'paintOut') {
         const elapsed = p.millis() - paintOutStart;
-        const progress = p.min(1, elapsed / PAINT_OUT_MS);
+        updatePaintOutFade(elapsed);
+        drawComposite();
 
-        for (let i = 0; i < 6; i += 1) {
-          const lx = p.random(p.width);
-          const ly = p.random(p.height);
-          const lift = progress * p.max(p.width, p.height) * p.random(0.12, 0.38);
-          for (let r = lift; r > 0; r -= lift / 6) {
-            wash.fill(255, 252, 248, p.random(5, 14));
-            wash.beginShape();
-            const verts = p.floor(p.random(8, 14));
-            for (let v = 0; v < verts; v += 1) {
-              const ang = (p.TWO_PI / verts) * v + p.random(-0.3, 0.3);
-              const wobble = p.noise(lx * 0.009, ly * 0.009, v + progress * 4) * 0.45;
-              const rad = r * (0.65 + wobble);
-              wash.vertex(lx + p.cos(ang) * rad, ly + p.sin(ang) * rad);
-            }
-            wash.endShape(p.CLOSE);
-          }
-        }
-
-        wash.fill(255, 255, 255, progress * 9 + 0.4);
-        wash.rect(0, 0, p.width, p.height);
-
-        if (progress >= 1) {
+        if (elapsed >= PAINT_OUT_MS) {
           finishPaintOut();
         }
+        return;
       }
 
       drawComposite();
@@ -423,6 +424,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       breakMarks = [];
       previousCanvasImage = null;
       paperFade = 0;
+      overlayOpacity = 1;
       resetWash(true);
 
       if (options.previousCanvas) {
@@ -462,6 +464,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       mode = 'paintOut';
       paintOutStart = p.millis();
       finishedPaintOut = false;
+      overlayOpacity = 1;
+      paperFade = 1;
       fallbackPools = [];
       p.loop();
     };
@@ -488,6 +492,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       paintedMarkCount = 0;
       previousCanvasImage = null;
       paperFade = 1;
+      overlayOpacity = 1;
       colorAgents.reset();
       resetWash();
       p.clear();

@@ -66,6 +66,7 @@ function createOverlayBridge() {
   function showOverlay() {
     const iframe = createOverlayFrame();
     iframe.style.display = 'block';
+    iframe.style.opacity = '1';
     iframe.style.pointerEvents = 'all';
     iframe.setAttribute('aria-hidden', 'false');
 
@@ -83,6 +84,7 @@ function createOverlayBridge() {
       return;
     }
     iframe.style.display = 'none';
+    iframe.style.opacity = '1';
     iframe.style.pointerEvents = 'none';
     iframe.setAttribute('aria-hidden', 'true');
     overlayReady = false;
@@ -157,19 +159,49 @@ function createOverlayBridge() {
   }
 
   function deliverOverlayCommand(command, payload = {}) {
+    if (command === 'RESET') {
+      createOverlayFrame();
+      forwardToOverlay(command, payload);
+      hideOverlay();
+      return;
+    }
+
     showOverlay();
     createOverlayFrame();
     queueCommand(command, payload);
   }
 
   window.addEventListener('message', (event) => {
-    if (event.data?.source !== 'paint-pomodoro' || event.data?.event !== 'READY') {
+    if (event.data?.source !== 'paint-pomodoro') {
       return;
     }
-    overlayReady = true;
-    flushPendingCommands();
-    if (pendingCommands.length === 0) {
-      stopDeliveryRetry();
+
+    if (event.data.event === 'READY') {
+      overlayReady = true;
+      flushPendingCommands();
+      if (pendingCommands.length === 0) {
+        stopDeliveryRetry();
+      }
+      return;
+    }
+
+    if (event.data.event === 'FADE') {
+      const iframe = document.getElementById(OVERLAY_ID);
+      if (!iframe) {
+        return;
+      }
+      const opacity = Math.max(0, Math.min(1, event.data.opacity ?? 1));
+      iframe.style.opacity = String(opacity);
+      iframe.style.pointerEvents = opacity < 1 ? 'none' : 'all';
+
+      if (opacity <= 0.001) {
+        hideOverlay();
+      }
+      return;
+    }
+
+    if (event.data.event === 'HIDE') {
+      hideOverlay();
     }
   });
 
