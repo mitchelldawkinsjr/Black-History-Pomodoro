@@ -15,7 +15,7 @@ import {
   getCanvasForBreak,
   getNextBreakNumber,
   loadDailyArt,
-  rotateForExtensionLoad,
+  rotateArtworkIfNewSession,
   saveDailyCanvas,
 } from './daily-art.js';
 import { getArtworkDisplay, getBreakRevealDisplay } from './reveal-tiers.js';
@@ -439,13 +439,19 @@ async function handleMessage(message) {
   }
 }
 
-let extensionInstallWork = null;
+let bootPromise = null;
+
+async function bootServiceWorker() {
+  if (!bootPromise) {
+    bootPromise = (async () => {
+      await rotateArtworkIfNewSession();
+      await startup();
+    })();
+  }
+  return bootPromise;
+}
 
 async function startup() {
-  if (extensionInstallWork) {
-    await extensionInstallWork;
-  }
-
   await loadState();
   await ensureDailyArtReset();
 
@@ -463,20 +469,12 @@ async function startup() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(async (details) => {
-  if (details.reason === 'install' || details.reason === 'update') {
-    extensionInstallWork = (async () => {
-      const previous = await loadDailyArt();
-      await rotateForExtensionLoad(
-        `${Date.now()}-${details.reason}`,
-        previous.artwork?.objectID ?? null,
-      );
-    })().catch((error) => {
-      console.warn('[PaintPomodoro] Failed to rotate artwork on install/update', error);
-    });
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    await bootServiceWorker();
+  } catch (error) {
+    console.warn('[PaintPomodoro] Failed to boot service worker on install', error);
   }
-
-  await startup();
 
   if (state.phase === PHASE.RESTING) {
     await showOverlayOnAllTabs();
@@ -488,4 +486,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     await showOverlayOnAllTabs();
     await sendOverlayCommand('PAINT_OUT');
   }
+});
+
+bootServiceWorker().catch((error) => {
+  console.warn('[PaintPomodoro] Failed to boot service worker', error);
 });

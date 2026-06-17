@@ -110,6 +110,26 @@ async function ensureDailyMarks(art) {
   return updated;
 }
 
+const SW_SESSION_KEY = 'paintPomodoroSwSession';
+
+/**
+ * Rotate artwork once per extension session (install, update, or reload).
+ * Session storage clears on reload, but persists across service worker sleep.
+ */
+export async function rotateArtworkIfNewSession() {
+  const stored = await chrome.storage.session.get(SW_SESSION_KEY);
+  if (stored[SW_SESSION_KEY]) {
+    return false;
+  }
+
+  const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await chrome.storage.session.set({ [SW_SESSION_KEY]: sessionId });
+
+  const previous = await loadDailyArt();
+  await rotateForExtensionLoad(sessionId, previous.artwork?.objectID ?? null);
+  return true;
+}
+
 /** Pick a fresh artwork — used on extension install/reload. Daily rotation comes later. */
 export async function rotateForExtensionLoad(seed, previousObjectID = null) {
   artworkFetchPromise = null;
