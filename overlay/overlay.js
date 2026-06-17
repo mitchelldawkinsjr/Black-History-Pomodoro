@@ -6,11 +6,14 @@ const promptType = document.getElementById('prompt-type');
 const container = document.getElementById('paint-container');
 
 const sketch = createPaintSketch(container, {
-  onPaintInComplete: () => {
-    notifyBackground('PAINT_IN_DONE');
+  onPaintInComplete: async (dataUrl) => {
+    if (dataUrl) {
+      await chrome.runtime.sendMessage({ type: 'CANVAS_SAVED', dataUrl });
+    }
+    chrome.runtime.sendMessage({ type: 'PAINT_IN_DONE' }).catch(() => {});
   },
   onPaintOutComplete: () => {
-    notifyBackground('PAINT_OUT_DONE');
+    chrome.runtime.sendMessage({ type: 'PAINT_OUT_DONE' }).catch(() => {});
   },
   onReady: () => {
     signalReady();
@@ -43,12 +46,6 @@ function hidePrompt() {
   promptType.textContent = '';
 }
 
-function notifyBackground(type) {
-  chrome.runtime.sendMessage({ type }).catch(() => {
-    // Background may be asleep briefly.
-  });
-}
-
 async function waitForApi(maxAttempts = 120) {
   for (let i = 0; i < maxAttempts; i += 1) {
     const api = getApi();
@@ -76,7 +73,11 @@ async function handleCommand(command, payload = {}) {
       break;
     case 'PAINT_IN':
       hidePrompt();
-      api.startPaintIn();
+      await api.startPaintIn({
+        breakNumber: payload.breakNumber ?? 1,
+        previousCanvas: payload.previousCanvas ?? null,
+        maxBreaks: payload.maxBreaks ?? 10,
+      });
       break;
     case 'PAINT_OUT':
       hidePrompt();

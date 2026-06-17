@@ -7,12 +7,21 @@ import {
   getPhaseDurationMs,
   getRemainingMs,
 } from './state.js';
+import {
+  MAX_DAILY_BREAKS,
+  clearDailyCanvas,
+  ensureDailyArtReset,
+  getNextBreakNumber,
+  loadDailyArt,
+  saveDailyCanvas,
+} from './daily-art.js';
 
 const STORAGE_KEY = 'paintPomodoroState';
 const PROMPTS_URL = chrome.runtime.getURL('data/prompts.json');
 
 let state = createDefaultState();
 let promptsCache = null;
+let pendingBreakNumber = null;
 
 async function loadState() {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
@@ -26,7 +35,7 @@ async function saveState() {
 async function broadcastState() {
   const payload = {
     type: MESSAGE.STATE_UPDATED,
-    state: getPublicState(),
+    state: await getPublicState(),
   };
 
   try {
@@ -36,10 +45,16 @@ async function broadcastState() {
   }
 }
 
-function getPublicState() {
+async function getPublicState() {
+  const dailyArt = await loadDailyArt();
   return {
     ...state,
     remainingMs: getRemainingMs(state),
+    dailyArt: {
+      breakCount: dailyArt.breakCount,
+      dateKey: dailyArt.dateKey,
+      maxBreaks: MAX_DAILY_BREAKS,
+    },
   };
 }
 
@@ -182,7 +197,28 @@ async function sendOverlayCommand(command, payload = {}) {
   });
 }
 
-async function beginPaintIn() {
+async function beginPaintIn(options = {}) {
+  await ensureDailyArtReset();
+  const art = await loadDailyArt();
+
+  let breakNumber;
+  let previousCanvas = art.canvasDataUrl;
+
+  if (options.testBreakNumber != null) {
+    breakNumber = options.testBreakNumber;
+    if (breakNumber === 1) {
+      await clearDailyCanvas();
+      previousCanvas = null;
+    } else {
+      const fresh = await loadDailyArt();
+      previousCanvas = fresh.canvasDataUrl ?? null;
+    }
+  } else {
+    breakNumber = getNextBreakNumber(art);
+  }
+
+  pendingBreakNumber = breakNumber;
+
   await setState({
     ...state,
     phase: PHASE.PAINTING_IN,
@@ -191,9 +227,13 @@ async function beginPaintIn() {
     remainingMs: null,
   });
   await clearAlarm();
+
   return sendOverlayToTargets({
     type: OVERLAY.COMMAND,
     command: 'PAINT_IN',
+    breakNumber,
+    previousCanvas,
+    maxBreaks: MAX_DAILY_BREAKS,
   });
 }
 
@@ -335,51 +375,77 @@ async function handleMessage(message) {
 
   switch (message.type) {
     case MESSAGE.GET_STATE:
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.START_FOCUS:
       await startFocus();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.START_BREAK:
       await beginRestBreak();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.PAUSE:
       await pauseTimer();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.RESUME:
       await resumeTimer();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.RESET:
       await resetTimer();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.SKIP_BREAK:
       await skipBreak();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.ACTIVATE: {
       const delivered = await beginPaintIn();
+      const publicState = await getPublicState();
       return {
         ok: true,
         delivered,
-        state: getPublicState(),
+        state: publicState,
         error: delivered
           ? undefined
           : 'Could not reach a webpage tab. Open a normal site (not chrome://) and try again.',
       };
     }
 
+    case MESSAGE.ACTIVATE_BREAK: {
+      const breakNumber = message.breakNumber;
+      if (!breakNumber || breakNumber < 1 || breakNumber > MAX_DAILY_BREAKS) {
+        return { ok: false, error: 'Invalid break number.' };
+      }
+      const delivered = await beginPaintIn({ testBreakNumber: breakNumber });
+      const publicState = await getPublicState();
+      return {
+        ok: true,
+        delivered,
+        state: publicState,
+        error: delivered
+          ? undefined
+          : 'Could not reach a webpage tab. Open a normal site (not chrome://) and try again.',
+      };
+    }
+
+    case MESSAGE.CANVAS_SAVED:
+      if (message.dataUrl && pendingBreakNumber != null) {
+        await saveDailyCanvas(message.dataUrl, pendingBreakNumber);
+        pendingBreakNumber = null;
+        await broadcastState();
+      }
+      return { ok: true, state: await getPublicState() };
+
     case MESSAGE.PAINT_IN_DONE:
       await handlePaintInDone();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     case MESSAGE.PAINT_OUT_DONE:
       await handlePaintOutDone();
-      return { ok: true, state: getPublicState() };
+      return { ok: true, state: await getPublicState() };
 
     default:
       return { ok: false, error: `Unknown message type: ${message.type}` };
@@ -409,6 +475,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 loadState().then(async () => {
+  await ensureDailyArtReset();
   if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
     if (state.pausedAt === null) {
       await schedulePhaseEndAlarm();

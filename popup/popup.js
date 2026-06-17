@@ -10,6 +10,8 @@ const timerHintEl = document.getElementById('timer-hint');
 const btnPrimary = document.getElementById('btn-primary');
 const btnSecondary = document.getElementById('btn-secondary');
 const btnActivate = document.getElementById('btn-activate');
+const dailyBreakCountEl = document.getElementById('daily-break-count');
+const breakGridEl = document.getElementById('break-grid');
 
 let currentState = null;
 let tickInterval = null;
@@ -42,6 +44,43 @@ function getDisplayRemainingMs(state) {
   return Math.max(0, durationMs - elapsed);
 }
 
+function renderDailyArt(state) {
+  const daily = state.dailyArt ?? { breakCount: 0, maxBreaks: 10 };
+  dailyBreakCountEl.textContent = String(daily.breakCount);
+
+  breakGridEl.querySelectorAll('.btn-break').forEach((btn) => {
+    const n = Number(btn.dataset.break);
+    btn.classList.toggle('is-done', n <= daily.breakCount);
+  });
+}
+
+function buildBreakButtons() {
+  breakGridEl.innerHTML = '';
+  for (let i = 1; i <= 10; i += 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-break';
+    btn.dataset.break = String(i);
+    btn.textContent = String(i);
+    btn.addEventListener('click', async () => {
+      timerHintEl.textContent = i === 1
+        ? 'Painting break 1… wait for it to finish before break 2.'
+        : `Painting break ${i} on today's canvas…`;
+      const response = await chrome.runtime.sendMessage({
+        type: MESSAGE.ACTIVATE_BREAK,
+        breakNumber: i,
+      });
+      if (response?.ok) {
+        render(response.state);
+      }
+      if (response?.error) {
+        timerHintEl.textContent = response.error;
+      }
+    });
+    breakGridEl.appendChild(btn);
+  }
+}
+
 function render(state) {
   currentState = state;
   const remainingMs = getDisplayRemainingMs(state);
@@ -53,6 +92,7 @@ function render(state) {
 
   btnPrimary.hidden = false;
   timerEl.textContent = formatTime(remainingMs);
+  renderDailyArt(state);
 
   btnSecondary.hidden = state.phase === PHASE.IDLE;
 
@@ -79,9 +119,7 @@ function render(state) {
 
   if (state.phase === PHASE.PAINTING_IN) {
     timerEl.textContent = '…';
-    timerHintEl.textContent = 'Watercolor is spreading across your screen.';
-    btnPrimary.textContent = 'Pause';
-    btnPrimary.dataset.action = 'pause';
+    timerHintEl.textContent = 'Adding today\'s layer to your canvas…';
     btnPrimary.hidden = true;
     return;
   }
@@ -102,8 +140,8 @@ function render(state) {
   }
 }
 
-async function sendMessage(type) {
-  const response = await chrome.runtime.sendMessage({ type });
+async function sendMessage(type, payload = {}) {
+  const response = await chrome.runtime.sendMessage({ type, ...payload });
   if (response?.ok) {
     render(response.state);
   }
@@ -162,6 +200,7 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 async function init() {
+  buildBreakButtons();
   const response = await chrome.runtime.sendMessage({ type: MESSAGE.GET_STATE });
   if (response?.ok) {
     render(response.state);

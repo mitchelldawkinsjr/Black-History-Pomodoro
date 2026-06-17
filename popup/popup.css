@@ -96,6 +96,40 @@ body {
   margin-bottom: 20px;
 }
 
+.test-label {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  color: #8b7355;
+}
+
+.break-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.btn-break {
+  padding: 7px 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid #d9cfc4;
+  border-radius: 8px;
+  background: #fff;
+  color: #6b5b4d;
+  cursor: pointer;
+}
+
+.btn-break:hover {
+  background: #f3ede6;
+  border-color: #b0a89a;
+}
+
+.btn-break.is-done {
+  background: #f0e0d8;
+  border-color: #c45c4a;
+  color: #9a4f42;
+}
+
 .btn-test {
   width: 100%;
   background: transparent;
