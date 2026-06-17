@@ -12,6 +12,7 @@ const revealTimer = document.getElementById('reveal-timer');
 let breakEndAt = null;
 let hudInterval = null;
 let hudExpanded = true;
+let breakTimerExpired = false;
 
 const sketch = createPaintSketch(container, {
   onPaintInComplete: async (dataUrl) => {
@@ -68,11 +69,41 @@ function formatTime(ms) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+function notifyBreakTimerExpired() {
+  if (breakTimerExpired) {
+    return;
+  }
+  breakTimerExpired = true;
+  chrome.runtime.sendMessage({ type: 'BREAK_TIMER_EXPIRED' }).catch(() => {});
+  startLocalPaintOut();
+}
+
+async function startLocalPaintOut() {
+  const api = await waitForApi();
+  if (!api) {
+    return;
+  }
+
+  const mode = api.getMode?.();
+  if (mode === 'resting' || mode === 'paintIn') {
+    setOverlayFade(1);
+    api.startPaintOut();
+  }
+}
+
 function updateRevealTimer() {
   if (!breakEndAt) {
     return;
   }
-  revealTimer.textContent = formatTime(breakEndAt - Date.now());
+
+  const remainingMs = breakEndAt - Date.now();
+  if (remainingMs <= 0) {
+    revealTimer.textContent = '00:00';
+    notifyBreakTimerExpired();
+    return;
+  }
+
+  revealTimer.textContent = formatTime(remainingMs);
 }
 
 function setHudExpanded(expanded) {
@@ -141,6 +172,7 @@ function showRevealHud(payload = {}) {
   setHudExpanded(true);
 
   breakEndAt = Date.now() + (payload.breakDurationMs ?? 5 * 60 * 1000);
+  breakTimerExpired = false;
   updateRevealTimer();
   revealHud.hidden = false;
   revealHud.style.opacity = '1';
@@ -156,6 +188,7 @@ function hideRevealHud() {
   revealHud.style.opacity = '1';
   setHudExpanded(true);
   breakEndAt = null;
+  breakTimerExpired = false;
   if (hudInterval) {
     clearInterval(hudInterval);
     hudInterval = null;

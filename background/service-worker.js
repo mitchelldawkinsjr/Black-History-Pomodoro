@@ -25,6 +25,7 @@ const STORAGE_KEY = 'paintPomodoroState';
 
 let state = createDefaultState();
 let pendingBreakNumber = null;
+let overlayTabId = null;
 
 async function loadState() {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
@@ -155,21 +156,25 @@ async function sendToAllTabs(message) {
   );
 }
 
-async function sendOverlayToTargets(message) {
+async function sendOverlayToTargets(message, preferredTabId = overlayTabId) {
+  if (preferredTabId && (await sendToTab(preferredTabId, message))) {
+    return { delivered: true, tabId: preferredTabId };
+  }
+
   const activeTab = await getActiveBrowsableTab();
   if (activeTab?.id && (await sendToTab(activeTab.id, message))) {
-    return true;
+    return { delivered: true, tabId: activeTab.id };
   }
 
   const tabs = await chrome.tabs.query({ currentWindow: true });
   for (const tab of tabs) {
     if (tab.id && isBrowsableUrl(tab.url) && (await sendToTab(tab.id, message))) {
-      return true;
+      return { delivered: true, tabId: tab.id };
     }
   }
 
   await sendToAllTabs(message);
-  return false;
+  return { delivered: false, tabId: null };
 }
 
 async function showOverlayOnAllTabs() {
@@ -181,11 +186,15 @@ async function hideOverlayOnAllTabs() {
 }
 
 async function sendOverlayCommand(command, payload = {}) {
-  await sendOverlayToTargets({
+  const result = await sendOverlayToTargets({
     type: OVERLAY.COMMAND,
     command,
     ...payload,
   });
+  if (result.tabId) {
+    overlayTabId = result.tabId;
+  }
+  return result.delivered;
 }
 
 async function beginBreak(options = {}) {
@@ -222,7 +231,7 @@ async function beginBreak(options = {}) {
 
   const breakReveal = getBreakRevealDisplay(art.artwork, breakNumber, MAX_DAILY_BREAKS);
 
-  return sendOverlayToTargets({
+  const delivery = await sendOverlayToTargets({
     type: OVERLAY.COMMAND,
     command: 'START_BREAK',
     breakNumber,
@@ -234,9 +243,22 @@ async function beginBreak(options = {}) {
     paintDurationMs,
     breakReveal,
   });
+  if (delivery.tabId) {
+    overlayTabId = delivery.tabId;
+  }
+  return delivery.delivered;
 }
 
 async function beginPaintOut() {
+  if (state.phase === PHASE.PAINTING_OUT) {
+    await sendOverlayCommand('PAINT_OUT');
+    return;
+  }
+
+  if (state.phase !== PHASE.RESTING) {
+    return;
+  }
+
   await setState({
     ...state,
     phase: PHASE.PAINTING_OUT,
@@ -249,6 +271,7 @@ async function beginPaintOut() {
 }
 
 async function startFocus() {
+  overlayTabId = null;
   await hideOverlayOnAllTabs();
   await sendOverlayCommand('RESET');
   await setState({
@@ -297,6 +320,7 @@ async function resumeTimer() {
 
 async function resetTimer() {
   await clearAlarm();
+  overlayTabId = null;
   await hideOverlayOnAllTabs();
   await sendOverlayCommand('RESET');
   await setState(createDefaultState());
@@ -333,6 +357,38 @@ async function handlePaintOutDone() {
     return;
   }
   await startFocus();
+}
+
+async function handleBreakTimerExpired() {
+  if (state.pausedAt !== null) {
+    return;
+  }
+
+  if (state.phase === PHASE.RESTING) {
+    await beginPaintOut();
+    return;
+  }
+
+  if (state.phase === PHASE.PAINTING_OUT) {
+    await sendOverlayCommand('PAINT_OUT');
+  }
+}
+
+async function syncPhaseTimer() {
+  if (state.phase !== PHASE.FOCUSING && state.phase !== PHASE.RESTING) {
+    return;
+  }
+
+  if (state.pausedAt !== null) {
+    return;
+  }
+
+  if (getRemainingMs(state) <= 0) {
+    await handlePhaseEnd();
+    return;
+  }
+
+  await schedulePhaseEndAlarm();
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -434,6 +490,10 @@ async function handleMessage(message) {
       await handlePaintOutDone();
       return { ok: true, state: await getPublicState() };
 
+    case MESSAGE.BREAK_TIMER_EXPIRED:
+      await handleBreakTimerExpired();
+      return { ok: true, state: await getPublicState() };
+
     default:
       return { ok: false, error: `Unknown message type: ${message.type}` };
   }
@@ -462,11 +522,7 @@ async function startup() {
     console.warn('[PaintPomodoro] Failed to prefetch daily artwork', error);
   }
 
-  if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
-    if (state.pausedAt === null) {
-      await schedulePhaseEndAlarm();
-    }
-  }
+  await syncPhaseTimer();
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
