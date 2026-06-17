@@ -10,11 +10,24 @@
     <div id="overlay-root">
       <div id="paint-container"></div>
       <aside id="reveal-hud" hidden aria-live="polite">
-        <p class="reveal-progress" id="reveal-progress">Break 1 of 10</p>
-        <p class="reveal-headline" id="reveal-headline"></p>
-        <p class="reveal-clue" id="reveal-clue"></p>
-        <p class="reveal-timer" id="reveal-timer">05:00</p>
-        <p class="reveal-attribution">Courtesy of The Metropolitan Museum of Art</p>
+        <header class="reveal-hud-header">
+          <button
+            type="button"
+            class="reveal-hud-toggle"
+            id="reveal-hud-toggle"
+            aria-expanded="true"
+            aria-controls="reveal-hud-body"
+          >
+            <span class="reveal-progress" id="reveal-progress">Break 1 of 10</span>
+            <span class="reveal-timer" id="reveal-timer">05:00</span>
+            <span class="reveal-chevron" aria-hidden="true"></span>
+          </button>
+        </header>
+        <div class="reveal-hud-body" id="reveal-hud-body">
+          <p class="reveal-headline" id="reveal-headline"></p>
+          <div class="reveal-clues" id="reveal-clues"></div>
+          <p class="reveal-attribution">Courtesy of The Metropolitan Museum of Art</p>
+        </div>
       </aside>
     </div>
     <script src="../lib/p5.min.js"></script>

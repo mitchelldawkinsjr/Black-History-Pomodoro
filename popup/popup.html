@@ -24,13 +24,24 @@
       </section>
 
       <section class="artwork-section" aria-live="polite">
-        <div class="section-heading">
-          <h2>Today's painting</h2>
-          <span class="badge" id="artwork-badge">The Met</span>
+        <button
+          type="button"
+          class="artwork-section-toggle"
+          id="artwork-toggle"
+          aria-expanded="true"
+          aria-controls="artwork-body"
+        >
+          <div class="section-heading">
+            <h2>Today's painting</h2>
+            <span class="badge" id="artwork-badge">The Met</span>
+          </div>
+          <span class="artwork-chevron" aria-hidden="true"></span>
+        </button>
+        <div class="artwork-body" id="artwork-body">
+          <p class="artwork-title" id="artwork-title">Loading…</p>
+          <div class="artwork-clues" id="artwork-clues" hidden></div>
+          <p class="artwork-progress">Canvas: <span id="daily-break-count">0</span>/10 breaks</p>
         </div>
-        <p class="artwork-title" id="artwork-title">Loading…</p>
-        <p class="artwork-clue" id="artwork-clue" hidden></p>
-        <p class="artwork-progress">Canvas: <span id="daily-break-count">0</span>/10 breaks</p>
       </section>
 
       <section class="test-section">

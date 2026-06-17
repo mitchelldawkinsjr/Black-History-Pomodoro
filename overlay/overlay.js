@@ -2,13 +2,16 @@ import { createPaintSketch } from './paint-sketch.js';
 
 const container = document.getElementById('paint-container');
 const revealHud = document.getElementById('reveal-hud');
+const revealHudToggle = document.getElementById('reveal-hud-toggle');
+const revealHudBody = document.getElementById('reveal-hud-body');
 const revealProgress = document.getElementById('reveal-progress');
 const revealHeadline = document.getElementById('reveal-headline');
-const revealClue = document.getElementById('reveal-clue');
+const revealClues = document.getElementById('reveal-clues');
 const revealTimer = document.getElementById('reveal-timer');
 
 let breakEndAt = null;
 let hudInterval = null;
+let hudExpanded = true;
 
 const sketch = createPaintSketch(container, {
   onPaintInComplete: async (dataUrl) => {
@@ -72,6 +75,60 @@ function updateRevealTimer() {
   revealTimer.textContent = formatTime(breakEndAt - Date.now());
 }
 
+function setHudExpanded(expanded) {
+  hudExpanded = expanded;
+  revealHud.classList.toggle('is-collapsed', !expanded);
+  revealHudToggle.setAttribute('aria-expanded', String(expanded));
+}
+
+revealHudToggle.addEventListener('click', () => {
+  setHudExpanded(!hudExpanded);
+});
+
+function renderRevealClues(unlockedClues, currentBreak) {
+  revealClues.replaceChildren();
+
+  if (!unlockedClues?.length) {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'reveal-clue-placeholder';
+    placeholder.textContent = 'More about this painting will appear with each break.';
+    revealClues.appendChild(placeholder);
+    return;
+  }
+
+  for (const clue of unlockedClues) {
+    const entry = document.createElement('article');
+    entry.className = 'reveal-clue-entry';
+    if (clue.breakNumber === currentBreak) {
+      entry.classList.add('is-new');
+    }
+
+    const label = document.createElement('h3');
+    label.className = 'reveal-clue-label';
+    label.textContent = clue.label;
+
+    const value = document.createElement('p');
+    value.className = 'reveal-clue-value';
+    value.textContent = clue.value;
+
+    entry.append(label, value);
+
+    if (clue.detail && clue.detail !== clue.value) {
+      const detail = document.createElement('p');
+      detail.className = 'reveal-clue-detail';
+      detail.textContent = clue.detail;
+      entry.appendChild(detail);
+    }
+
+    revealClues.appendChild(entry);
+  }
+
+  const newest = revealClues.querySelector('.is-new');
+  if (newest) {
+    newest.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
 function showRevealHud(payload = {}) {
   const reveal = payload.breakReveal ?? {};
   const breakNumber = reveal.breakNumber ?? payload.breakNumber ?? 1;
@@ -80,14 +137,8 @@ function showRevealHud(payload = {}) {
   revealProgress.textContent = reveal.progressLabel ?? `Break ${breakNumber} of ${maxBreaks}`;
   revealHeadline.textContent = reveal.headline ?? '';
   revealHeadline.hidden = !reveal.headline;
-
-  if (reveal.clue) {
-    revealClue.textContent = `${reveal.clue.label}: ${reveal.clue.value}`;
-    revealClue.hidden = false;
-  } else {
-    revealClue.textContent = 'More of the painting will appear as you rest.';
-    revealClue.hidden = false;
-  }
+  renderRevealClues(reveal.unlockedClues ?? [], breakNumber);
+  setHudExpanded(true);
 
   breakEndAt = Date.now() + (payload.breakDurationMs ?? 5 * 60 * 1000);
   updateRevealTimer();
@@ -103,6 +154,7 @@ function showRevealHud(payload = {}) {
 function hideRevealHud() {
   revealHud.hidden = true;
   revealHud.style.opacity = '1';
+  setHudExpanded(true);
   breakEndAt = null;
   if (hudInterval) {
     clearInterval(hudInterval);

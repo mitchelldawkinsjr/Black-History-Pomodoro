@@ -34,8 +34,18 @@ export function extractArtworkMetadata(object) {
     primaryImage: object.primaryImage,
     primaryImageSmall: object.primaryImageSmall ?? object.primaryImage,
     objectURL: object.objectURL ?? '',
+    repository: object.repository ?? '',
+    objectDescription: object.objectDescription ?? '',
+    additionalInformation: object.additionalInformation ?? '',
+    classification: object.classification ?? '',
+    galleryNumber: object.GalleryNumber ?? object.galleryNumber ?? '',
+    objectBeginDate: object.objectBeginDate ?? null,
+    objectEndDate: object.objectEndDate ?? null,
     isHighlight: object.isHighlight === true,
-    tags: object.tags ?? '',
+    isTimelineWork: object.isTimelineWork === true,
+    tags: Array.isArray(object.tags)
+      ? object.tags.map((tag) => tag?.term).filter(Boolean)
+      : [],
   };
 }
 

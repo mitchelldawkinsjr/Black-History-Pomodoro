@@ -35,51 +35,178 @@ body {
   position: fixed;
   left: 24px;
   bottom: 24px;
-  max-width: min(360px, calc(100vw - 48px));
-  padding: 16px 18px;
+  width: min(380px, calc(100vw - 48px));
+  max-height: min(62vh, 520px);
   border-radius: 14px;
-  background: rgba(255, 252, 247, 0.88);
+  background: rgba(255, 252, 247, 0.94);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 #reveal-hud[hidden] {
   display: none;
 }
 
+#reveal-hud.is-collapsed {
+  max-height: none;
+}
+
+#reveal-hud.is-collapsed .reveal-hud-body {
+  display: none;
+}
+
+.reveal-hud-header {
+  flex-shrink: 0;
+}
+
+.reveal-hud-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.reveal-hud-toggle:hover {
+  background: rgba(154, 79, 66, 0.05);
+}
+
 .reveal-progress {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #9a4f42;
+  flex: 1;
+}
+
+.reveal-timer {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #1f2933;
+  flex-shrink: 0;
+}
+
+.reveal-chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #9a4f42;
+  border-bottom: 2px solid #9a4f42;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-top: -4px;
+}
+
+#reveal-hud.is-collapsed .reveal-chevron {
+  transform: rotate(-135deg);
+  margin-top: 2px;
+}
+
+.reveal-hud-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: 0 16px 14px;
+  overflow: hidden;
 }
 
 .reveal-headline {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1.35;
   color: #374151;
+  flex-shrink: 0;
 }
 
-.reveal-clue {
+.reveal-clues {
+  flex: 1;
+  min-height: 0;
+  max-height: min(36vh, 320px);
+  overflow-y: auto;
   margin: 0 0 10px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 79, 66, 0.35) transparent;
+}
+
+.reveal-clue-placeholder {
+  margin: 0;
   font-size: 0.82rem;
   line-height: 1.45;
-  color: #4b5563;
+  color: #6b7280;
 }
 
-.reveal-timer {
+.reveal-clue-entry {
   margin: 0 0 8px;
-  font-size: 1.35rem;
-  font-weight: 300;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(154, 79, 66, 0.08);
+}
+
+.reveal-clue-entry:last-child {
+  margin-bottom: 0;
+}
+
+.reveal-clue-entry.is-new {
+  border-color: rgba(154, 79, 66, 0.24);
+  background: rgba(255, 248, 242, 0.95);
+  animation: reveal-clue-in 0.45s ease-out;
+}
+
+@keyframes reveal-clue-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-clue-label {
+  margin: 0 0 2px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #9a4f42;
+}
+
+.reveal-clue-value {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.4;
   color: #1f2933;
+}
+
+.reveal-clue-detail {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #4b5563;
 }
 
 .reveal-attribution {
@@ -87,4 +214,5 @@ body {
   font-size: 0.62rem;
   letter-spacing: 0.03em;
   color: #9ca3af;
+  flex-shrink: 0;
 }

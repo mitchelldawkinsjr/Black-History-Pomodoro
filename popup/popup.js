@@ -12,12 +12,15 @@ const btnSecondary = document.getElementById('btn-secondary');
 const btnActivate = document.getElementById('btn-activate');
 const dailyBreakCountEl = document.getElementById('daily-break-count');
 const artworkTitleEl = document.getElementById('artwork-title');
-const artworkClueEl = document.getElementById('artwork-clue');
+const artworkCluesEl = document.getElementById('artwork-clues');
 const artworkBadgeEl = document.getElementById('artwork-badge');
+const artworkToggleEl = document.getElementById('artwork-toggle');
+const artworkBodyEl = document.getElementById('artwork-body');
 const breakGridEl = document.getElementById('break-grid');
 
 let currentState = null;
 let tickInterval = null;
+let artworkExpanded = true;
 
 function formatTime(ms) {
   const totalSeconds = Math.ceil(ms / 1000);
@@ -57,15 +60,40 @@ function renderDailyArt(state) {
   dailyBreakCountEl.textContent = String(daily.breakCount);
   artworkTitleEl.textContent = display.headline;
 
-  if (display.latestClue) {
-    artworkClueEl.hidden = false;
-    artworkClueEl.textContent = `${display.latestClue.label}: ${display.latestClue.value}`;
+  artworkCluesEl.replaceChildren();
+  if (display.clues?.length) {
+    artworkCluesEl.hidden = false;
+    for (const clue of display.clues) {
+      const entry = document.createElement('div');
+      entry.className = 'artwork-clue-entry';
+
+      const label = document.createElement('span');
+      label.className = 'artwork-clue-label';
+      label.textContent = clue.label;
+
+      const value = document.createElement('p');
+      value.className = 'artwork-clue-value';
+      value.textContent = clue.value;
+
+      entry.append(label, value);
+
+      if (clue.detail && clue.detail !== clue.value) {
+        const detail = document.createElement('p');
+        detail.className = 'artwork-clue-detail';
+        detail.textContent = clue.detail;
+        entry.appendChild(detail);
+      }
+
+      artworkCluesEl.appendChild(entry);
+    }
   } else if (daily.breakCount === 0 && daily.artworkReady) {
-    artworkClueEl.hidden = false;
-    artworkClueEl.textContent = 'Take a break to start revealing it.';
+    artworkCluesEl.hidden = false;
+    const hint = document.createElement('p');
+    hint.className = 'artwork-clue-empty';
+    hint.textContent = 'Take a break to start revealing it.';
+    artworkCluesEl.appendChild(hint);
   } else {
-    artworkClueEl.hidden = true;
-    artworkClueEl.textContent = '';
+    artworkCluesEl.hidden = true;
   }
 
   artworkBadgeEl.textContent = display.titleUnlocked ? 'Revealed' : 'The Met';
@@ -75,6 +103,17 @@ function renderDailyArt(state) {
     btn.classList.toggle('is-done', n <= daily.breakCount);
   });
 }
+
+function setArtworkExpanded(expanded) {
+  artworkExpanded = expanded;
+  artworkToggleEl.setAttribute('aria-expanded', String(expanded));
+  artworkBodyEl.hidden = !expanded;
+  artworkToggleEl.classList.toggle('is-collapsed', !expanded);
+}
+
+artworkToggleEl.addEventListener('click', () => {
+  setArtworkExpanded(!artworkExpanded);
+});
 
 function buildBreakButtons() {
   breakGridEl.innerHTML = '';
@@ -217,6 +256,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
 async function init() {
   buildBreakButtons();
+  setArtworkExpanded(true);
   const response = await chrome.runtime.sendMessage({ type: MESSAGE.GET_STATE });
   if (response?.ok) {
     render(response.state);
