@@ -7,6 +7,7 @@ import {
   expandMark,
 } from './mark-utils.js';
 import { createWatercolorTools } from './watercolor.js';
+import { createColorAgents } from './color-agents.js';
 
 const DEFAULT_PAINT_MS = 20 * 1000;
 const PAINT_OUT_MS = 25000;
@@ -17,6 +18,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
   const instance = new p5((p) => {
     const wc = createWatercolorTools(p);
+    const colorAgents = createColorAgents(p, wc);
 
     let wash;
     let fallbackPools = [];
@@ -34,11 +36,59 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let markLayout = null;
     let breakMarks = [];
     let paintedMarkCount = 0;
+    let previousCanvasImage = null;
+    let paperFade = 1;
 
-    function resetWash() {
+    function getArtworkImageUrl(artwork) {
+      return artwork?.primaryImage || artwork?.primaryImageSmall || null;
+    }
+
+    function initColorAgents(img) {
+      if (!marksData || !markLayout) {
+        return;
+      }
+
+      const scale = p.max(1, p.sqrt((p.width * p.height) / (900 * 700)));
+      colorAgents.initFromImage(img, marksData, markLayout, {
+        penQuantity: p.floor(p.map(breakNumber, 1, maxBreaks, 22, 34) * p.min(scale, 1.35)),
+        agentRange: p.floor(p.map(breakNumber, 1, maxBreaks, 10, 14)),
+        brushRadius: p.lerp(2.8, 4.2, breakNumber / maxBreaks),
+        brushAlpha: p.lerp(5.5, 8.5, breakNumber / maxBreaks),
+      });
+    }
+
+    function resetWash(transparent = false) {
       wash = p.createGraphics(p.width, p.height);
       wash.noStroke();
-      wash.background(255, 255, 255);
+      if (transparent) {
+        wash.clear();
+      } else {
+        wash.background(255, 255, 255);
+      }
+    }
+
+    function getPaperFadeMs() {
+      return p.min(4000, p.max(2200, paintInDurationMs * 0.18));
+    }
+
+    function updatePaperFade(elapsed) {
+      const raw = p.min(1, elapsed / getPaperFadeMs());
+      paperFade = p.pow(raw, 0.72);
+    }
+
+    function flattenWashForExport() {
+      const flat = p.createGraphics(p.width, p.height);
+      flat.noStroke();
+      flat.background(255);
+      if (previousCanvasImage) {
+        flat.image(previousCanvasImage, 0, 0, p.width, p.height);
+      }
+      if (wash) {
+        flat.image(wash, 0, 0);
+      }
+      wash = flat;
+      previousCanvasImage = null;
+      paperFade = 1;
     }
 
     function breakRichness() {
@@ -157,27 +207,41 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     function loadPreviousCanvas(dataUrl) {
       return new Promise((resolve) => {
         if (!dataUrl) {
+          previousCanvasImage = null;
           resolve(false);
           return;
         }
         p.loadImage(
           dataUrl,
           (img) => {
-            wash.clear();
-            wash.background(255);
-            wash.image(img, 0, 0, p.width, p.height);
+            previousCanvasImage = img;
             resolve(true);
           },
-          () => resolve(false),
+          () => {
+            previousCanvasImage = null;
+            resolve(false);
+          },
         );
       });
     }
 
     function drawComposite() {
+      p.clear();
+
+      if (paperFade > 0) {
+        p.noStroke();
+        p.fill(255, 255, 255, paperFade * 255);
+        p.rect(0, 0, p.width, p.height);
+      }
+
+      if (previousCanvasImage && paperFade > 0) {
+        p.tint(255, paperFade * 255);
+        p.image(previousCanvasImage, 0, 0, p.width, p.height);
+        p.noTint();
+      }
+
       if (wash) {
         p.image(wash, 0, 0);
-      } else {
-        p.background(255);
       }
     }
 
@@ -195,6 +259,11 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
         }
       }
 
+      if (colorAgents.isReady()) {
+        colorAgents.burst(wash, p.floor(p.map(breakNumber, 1, maxBreaks, 80, 140)), 0.95);
+      }
+
+      flattenWashForExport();
       fallbackPools = [];
       mode = 'resting';
       drawComposite();
@@ -216,14 +285,23 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       const sessionOpacity = p.lerp(0.52, 0.94, p.pow(coverage, 0.38));
       const targetCount = p.floor(coverage * breakMarks.length);
       const remaining = targetCount - paintedMarkCount;
+      const splotchWeight = colorAgents.isReady() ? 0.42 : 1;
       const batchSize = p.max(
-        10,
-        p.min(remaining, p.ceil(remaining * 0.45) + 8),
+        6,
+        p.floor(
+          p.min(remaining, p.ceil(remaining * 0.45) + 8) * splotchWeight,
+        ),
       );
 
       for (let i = 0; i < batchSize && paintedMarkCount < targetCount; i += 1) {
         paintSingleMark(breakMarks[paintedMarkCount], sessionOpacity);
         paintedMarkCount += 1;
+      }
+
+      if (colorAgents.isReady()) {
+        const agentSteps = p.floor(p.map(coverage, 0, 1, 1, 3));
+        const agentAlpha = sessionOpacity * p.lerp(0.55, 1, p.pow(coverage, 0.5));
+        colorAgents.step(wash, agentSteps, agentAlpha);
       }
     }
 
@@ -264,6 +342,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       if (mode === 'paintIn') {
         const elapsed = p.millis() - paintInStart;
+
+        updatePaperFade(elapsed);
 
         if (useImageMode) {
           updateImagePaintIn(elapsed);
@@ -312,8 +392,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     p.windowResized = () => {
       p.resizeCanvas(p.windowWidth, p.windowHeight);
       const snapshot = wash.get();
-      resetWash();
-      wash.image(snapshot, 0, 0);
+      resetWash(mode === 'paintIn');
+      wash.image(snapshot, 0, 0, p.width, p.height);
       if (useImageMode && marksData && mode === 'paintIn') {
         const prevProgress = breakMarks.length ? paintedMarkCount / breakMarks.length : 0;
         breakMarks = prepareImageBreakMarks();
@@ -341,7 +421,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       fallbackPools = [];
       paintedMarkCount = 0;
       breakMarks = [];
-      resetWash();
+      previousCanvasImage = null;
+      paperFade = 0;
+      resetWash(true);
 
       if (options.previousCanvas) {
         await loadPreviousCanvas(options.previousCanvas);
@@ -349,7 +431,24 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       if (useImageMode) {
         breakMarks = prepareImageBreakMarks();
+        const artwork = options.artwork ?? null;
+        if (artwork) {
+          const url = getArtworkImageUrl(artwork);
+          if (url) {
+            await new Promise((resolve) => {
+              p.loadImage(
+                url,
+                (img) => {
+                  initColorAgents(img);
+                  resolve();
+                },
+                () => resolve(),
+              );
+            });
+          }
+        }
       } else {
+        colorAgents.reset();
         spawnFallbackPools(p.floor(p.map(breakNumber, 1, maxBreaks, 5, 8)));
       }
 
@@ -387,6 +486,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       marksData = null;
       breakMarks = [];
       paintedMarkCount = 0;
+      previousCanvasImage = null;
+      paperFade = 1;
+      colorAgents.reset();
       resetWash();
       p.clear();
       p.noLoop();
