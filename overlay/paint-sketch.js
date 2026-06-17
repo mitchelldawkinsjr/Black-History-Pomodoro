@@ -1,5 +1,5 @@
 /**
- * Watercolor reveal — Met artwork marks painted with organic bleed trails.
+ * Watercolor reveal — dense overlapping splotches build the painting in ~20s, then hold.
  */
 
 import {
@@ -8,9 +8,8 @@ import {
 } from './mark-utils.js';
 import { createWatercolorTools } from './watercolor.js';
 
-const DEFAULT_BREAK_MS = 5 * 60 * 1000;
+const DEFAULT_PAINT_MS = 20 * 1000;
 const PAINT_OUT_MS = 25000;
-const MAX_MARK_POOLS = 80;
 const MAX_FALLBACK_POOLS = 64;
 
 export function createPaintSketch(container, { onPaintInComplete, onPaintOutComplete, onReady } = {}) {
@@ -20,10 +19,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     const wc = createWatercolorTools(p);
 
     let wash;
-    let markPools = [];
     let fallbackPools = [];
     let mode = 'idle';
-    let paintInDurationMs = DEFAULT_BREAK_MS;
+    let paintInDurationMs = DEFAULT_PAINT_MS;
     let paintInStart = 0;
     let paintOutStart = 0;
     let coverage = 0;
@@ -43,6 +41,10 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       wash.background(255, 255, 255);
     }
 
+    function breakRichness() {
+      return p.lerp(0.88, 0.98, p.pow(breakNumber / maxBreaks, 0.45));
+    }
+
     function sortMarksCenterOut(marks) {
       if (!markLayout) {
         return marks;
@@ -50,8 +52,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       const cx = markLayout.offsetX + markLayout.drawW * 0.5;
       const cy = markLayout.offsetY + markLayout.drawH * 0.5;
       return marks.slice().sort((a, b) => {
-        const da = p.dist(a.x, a.y, cx, cy) + p.random(-12, 12);
-        const db = p.dist(b.x, b.y, cx, cy) + p.random(-12, 12);
+        const da = p.dist(a.x, a.y, cx, cy) + p.random(-10, 10);
+        const db = p.dist(b.x, b.y, cx, cy) + p.random(-10, 10);
         return da - db;
       });
     }
@@ -73,31 +75,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       return sortMarksCenterOut(expanded);
     }
 
-    function spawnMarkPool(mark) {
-      if (markPools.length >= MAX_MARK_POOLS) {
-        markPools.shift();
-      }
-      markPools.push(wc.createMarkBleedPool(mark));
-    }
-
-    function paintSingleMark(mark) {
-      wc.depositOrganicMark(wash, mark);
-      spawnMarkPool(mark);
-    }
-
-    function paintImageMarksUpTo(targetCount) {
-      const end = p.min(targetCount, breakMarks.length);
-      while (paintedMarkCount < end) {
-        paintSingleMark(breakMarks[paintedMarkCount]);
-        paintedMarkCount += 1;
-      }
-    }
-
-    function updateMarkPools(scale) {
-      markPools = markPools.filter((pool) => pool.alive());
-      for (const pool of markPools) {
-        pool.update(wash, scale);
-      }
+    function paintSingleMark(mark, sessionOpacity) {
+      wc.depositSplotch(wash, mark, breakRichness(), sessionOpacity);
     }
 
     function createFallbackPool(x, y) {
@@ -164,9 +143,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
         if (fallbackPools.length >= MAX_FALLBACK_POOLS) {
           fallbackPools.shift();
         }
-        fallbackPools.push(
-          createFallbackPool(p.random(p.width), p.random(p.height)),
-        );
+        fallbackPools.push(createFallbackPool(p.random(p.width), p.random(p.height)));
       }
     }
 
@@ -204,17 +181,6 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       }
     }
 
-    function sealBreakLayer() {
-      if (useImageMode) {
-        for (let i = 0; i < 10; i += 1) {
-          updateMarkPools(0.95);
-        }
-        return;
-      }
-
-      spawnFallbackPools(6);
-    }
-
     function finishPaintIn() {
       if (finishedPaintIn) {
         return;
@@ -222,12 +188,13 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       finishedPaintIn = true;
 
       if (useImageMode) {
-        paintImageMarksUpTo(breakMarks.length);
-        updateMarkPools(0.9);
+        const sessionOpacity = p.random(0.88, 0.98);
+        while (paintedMarkCount < breakMarks.length) {
+          paintSingleMark(breakMarks[paintedMarkCount], sessionOpacity);
+          paintedMarkCount += 1;
+        }
       }
 
-      sealBreakLayer();
-      markPools = [];
       fallbackPools = [];
       mode = 'resting';
       drawComposite();
@@ -246,18 +213,18 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
     function updateImagePaintIn(elapsed) {
       coverage = p.min(1, elapsed / paintInDurationMs);
-      const soakStrength = p.pow(coverage, 0.78);
+      const sessionOpacity = p.lerp(0.52, 0.94, p.pow(coverage, 0.38));
       const targetCount = p.floor(coverage * breakMarks.length);
-      const batchSize = p.max(2, p.ceil((targetCount - paintedMarkCount) / 3));
+      const remaining = targetCount - paintedMarkCount;
+      const batchSize = p.max(
+        10,
+        p.min(remaining, p.ceil(remaining * 0.45) + 8),
+      );
 
-      for (let i = 0; i < batchSize; i += 1) {
-        if (paintedMarkCount >= targetCount) {
-          break;
-        }
-        paintImageMarksUpTo(paintedMarkCount + 1);
+      for (let i = 0; i < batchSize && paintedMarkCount < targetCount; i += 1) {
+        paintSingleMark(breakMarks[paintedMarkCount], sessionOpacity);
+        paintedMarkCount += 1;
       }
-
-      updateMarkPools(soakStrength);
     }
 
     function updateGenerativePaintIn(elapsed) {
@@ -361,7 +328,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       breakNumber = options.breakNumber ?? 1;
       maxBreaks = options.maxBreaks ?? 10;
-      paintInDurationMs = options.breakDurationMs ?? DEFAULT_BREAK_MS;
+      paintInDurationMs = options.paintDurationMs ?? DEFAULT_PAINT_MS;
       marksData = options.marks ?? null;
       useImageMode = Boolean(marksData?.marks?.length);
 
@@ -371,7 +338,6 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       coverage = 0;
       finishedPaintIn = false;
       finishedPaintOut = false;
-      markPools = [];
       fallbackPools = [];
       paintedMarkCount = 0;
       breakMarks = [];
@@ -397,7 +363,6 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       mode = 'paintOut';
       paintOutStart = p.millis();
       finishedPaintOut = false;
-      markPools = [];
       fallbackPools = [];
       p.loop();
     };
@@ -414,7 +379,6 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
     api.reset = () => {
       mode = 'idle';
-      markPools = [];
       fallbackPools = [];
       coverage = 0;
       finishedPaintIn = false;

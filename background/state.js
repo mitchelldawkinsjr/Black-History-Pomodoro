@@ -35,7 +35,7 @@ export const OVERLAY = {
 export const DEFAULT_SETTINGS = {
   focusMinutes: 25,
   breakMinutes: 5,
-  paintInSeconds: 25,
+  paintRevealSeconds: 20,
   paintOutSeconds: 25,
 };
 

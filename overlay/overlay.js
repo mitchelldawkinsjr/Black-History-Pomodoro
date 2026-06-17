@@ -114,6 +114,7 @@ async function startBreakPaint(payload = {}) {
     artwork: payload.artwork ?? null,
     marks: payload.marks ?? null,
     breakDurationMs: payload.breakDurationMs,
+    paintDurationMs: payload.paintDurationMs ?? 20000,
   });
 }
 

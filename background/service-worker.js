@@ -12,8 +12,10 @@ import {
   clearDailyCanvas,
   ensureDailyArtReset,
   ensureDailyArtwork,
+  getCanvasForBreak,
   getNextBreakNumber,
   loadDailyArt,
+  rotateForExtensionLoad,
   saveDailyCanvas,
 } from './daily-art.js';
 import { getArtworkDisplay, getBreakRevealDisplay } from './reveal-tiers.js';
@@ -190,7 +192,7 @@ async function beginBreak(options = {}) {
   const art = await ensureDailyArtwork();
 
   let breakNumber;
-  let previousCanvas = art.canvasDataUrl;
+  let previousCanvas = getCanvasForBreak(art);
 
   if (options.testBreakNumber != null) {
     breakNumber = options.testBreakNumber;
@@ -199,7 +201,7 @@ async function beginBreak(options = {}) {
       previousCanvas = null;
     } else {
       const fresh = await loadDailyArt();
-      previousCanvas = fresh.canvasDataUrl ?? null;
+      previousCanvas = getCanvasForBreak(fresh);
     }
   } else {
     breakNumber = getNextBreakNumber(art);
@@ -207,6 +209,7 @@ async function beginBreak(options = {}) {
 
   pendingBreakNumber = breakNumber;
   const breakDurationMs = state.settings.breakMinutes * 60 * 1000;
+  const paintDurationMs = (state.settings.paintRevealSeconds ?? 20) * 1000;
 
   await setState({
     ...state,
@@ -228,6 +231,7 @@ async function beginBreak(options = {}) {
     artwork: art.artwork,
     marks: packMarksForBreak(art.marks, breakNumber),
     breakDurationMs,
+    paintDurationMs,
     breakReveal,
   });
 }
@@ -435,18 +439,45 @@ async function handleMessage(message) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+let extensionInstallWork = null;
+
+async function startup() {
+  if (extensionInstallWork) {
+    await extensionInstallWork;
+  }
+
   await loadState();
-  ensureDailyArtwork()
-    .then(() => broadcastState())
-    .catch((error) => {
-      console.warn('[PaintPomodoro] Failed to load daily artwork on install', error);
-    });
+  await ensureDailyArtReset();
+
+  try {
+    await ensureDailyArtwork();
+    await broadcastState();
+  } catch (error) {
+    console.warn('[PaintPomodoro] Failed to prefetch daily artwork', error);
+  }
+
   if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
     if (state.pausedAt === null) {
       await schedulePhaseEndAlarm();
     }
   }
+}
+
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === 'install' || details.reason === 'update') {
+    extensionInstallWork = (async () => {
+      const previous = await loadDailyArt();
+      await rotateForExtensionLoad(
+        `${Date.now()}-${details.reason}`,
+        previous.artwork?.objectID ?? null,
+      );
+    })().catch((error) => {
+      console.warn('[PaintPomodoro] Failed to rotate artwork on install/update', error);
+    });
+  }
+
+  await startup();
+
   if (state.phase === PHASE.RESTING) {
     await showOverlayOnAllTabs();
     await sendOverlayCommand('START_BREAK', {
@@ -456,19 +487,5 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (state.phase === PHASE.PAINTING_OUT) {
     await showOverlayOnAllTabs();
     await sendOverlayCommand('PAINT_OUT');
-  }
-});
-
-loadState().then(async () => {
-  await ensureDailyArtReset();
-  ensureDailyArtwork()
-    .then(() => broadcastState())
-    .catch((error) => {
-      console.warn('[PaintPomodoro] Failed to prefetch daily artwork', error);
-    });
-  if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
-    if (state.pausedAt === null) {
-      await schedulePhaseEndAlarm();
-    }
   }
 });

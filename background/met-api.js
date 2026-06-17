@@ -70,14 +70,20 @@ export async function loadCuratedIds() {
   return data.objectIDs ?? [];
 }
 
-export async function pickFromCuratedList(dateKey, curatedIds) {
-  if (!curatedIds.length) {
+export async function pickFromCuratedList(dateKey, curatedIds, options = {}) {
+  const { excludeObjectID = null } = options;
+  const pool = excludeObjectID
+    ? curatedIds.filter((id) => id !== excludeObjectID)
+    : curatedIds;
+  const ids = pool.length ? pool : curatedIds;
+
+  if (!ids.length) {
     throw new Error('No curated artwork IDs available');
   }
 
-  const startIndex = hashDateKey(dateKey) % curatedIds.length;
-  for (let offset = 0; offset < curatedIds.length; offset += 1) {
-    const objectID = curatedIds[(startIndex + offset) % curatedIds.length];
+  const startIndex = hashDateKey(dateKey) % ids.length;
+  for (let offset = 0; offset < ids.length; offset += 1) {
+    const objectID = ids[(startIndex + offset) % ids.length];
     try {
       const object = await fetchObject(objectID);
       if (isValidOpenAccessArtwork(object)) {
@@ -120,10 +126,10 @@ export async function pickFromSearch(dateKey) {
   throw new Error('Search did not yield a valid open-access painting');
 }
 
-export async function pickDailyArtwork(dateKey) {
+export async function pickDailyArtwork(dateKey, options = {}) {
   const curatedIds = await loadCuratedIds();
   try {
-    return await pickFromCuratedList(dateKey, curatedIds);
+    return await pickFromCuratedList(dateKey, curatedIds, options);
   } catch (error) {
     console.warn('[PaintPomodoro] Curated pick failed, falling back to search', error);
     return pickFromSearch(dateKey);

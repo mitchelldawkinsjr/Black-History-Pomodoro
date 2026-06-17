@@ -1,5 +1,5 @@
-export const MARKS_VERSION = 1;
-export const GRID_SIZE = 10;
+export const MARKS_VERSION = 8;
+export const GRID_SIZE = 7;
 export const MAX_SAMPLE_WIDTH = 900;
 
 function rgbToHsb(r, g, b) {
@@ -30,15 +30,19 @@ function rgbToHsb(r, g, b) {
   return { h, s, v };
 }
 
+function markHash(nx1k, ny1k, salt) {
+  const s = Math.sin(nx1k * 127.1 + ny1k * 311.7 + salt * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
 function distFromCenter(nx, ny) {
   const dx = nx - 0.5;
   const dy = ny - 0.5;
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function wobble(nx, ny) {
-  const n = Math.sin(nx * 47.3 + ny * 91.7) * 43758.5453;
-  return (n - Math.floor(n)) * 0.08 - 0.04;
+function centerWobble(nx, ny) {
+  return (markHash(Math.round(nx * 1000), Math.round(ny * 1000), 99) - 0.5) * 0.06;
 }
 
 export async function fetchImageData(imageUrl) {
@@ -48,7 +52,12 @@ export async function fetchImageData(imageUrl) {
   }
 
   const blob = await response.blob();
-  const bitmap = await createImageBitmap(blob);
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  } catch {
+    bitmap = await createImageBitmap(blob);
+  }
   const scale = Math.min(1, MAX_SAMPLE_WIDTH / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -65,25 +74,54 @@ export async function fetchImageData(imageUrl) {
   };
 }
 
+function sampleCellColor(imageData, width, height, cellX, cellY) {
+  let rSum = 0;
+  let gSum = 0;
+  let bSum = 0;
+  let aSum = 0;
+  let count = 0;
+
+  for (let dy = 0; dy < GRID_SIZE; dy += 1) {
+    for (let dx = 0; dx < GRID_SIZE; dx += 1) {
+      const px = Math.min(width - 1, cellX + dx);
+      const py = Math.min(height - 1, cellY + dy);
+      const i = (py * width + px) * 4;
+      const a = imageData[i + 3];
+      if (a < 40) {
+        continue;
+      }
+      rSum += imageData[i];
+      gSum += imageData[i + 1];
+      bSum += imageData[i + 2];
+      aSum += a;
+      count += 1;
+    }
+  }
+
+  if (count === 0 || aSum / count < 40) {
+    return null;
+  }
+
+  return {
+    r: Math.round(rSum / count),
+    g: Math.round(gSum / count),
+    b: Math.round(bSum / count),
+  };
+}
+
 export function generateMarksFromImageData(imageData, width, height, maxBreaks = 10) {
   const rawMarks = [];
 
   for (let y = 0; y < height; y += GRID_SIZE) {
     for (let x = 0; x < width; x += GRID_SIZE) {
-      const px = Math.min(width - 1, x + Math.floor(GRID_SIZE / 2));
-      const py = Math.min(height - 1, y + Math.floor(GRID_SIZE / 2));
-      const i = (py * width + px) * 4;
-      const r = imageData[i];
-      const g = imageData[i + 1];
-      const b = imageData[i + 2];
-      const a = imageData[i + 3];
-
-      if (a < 40) {
+      const color = sampleCellColor(imageData, width, height, x, y);
+      if (!color) {
         continue;
       }
 
-      const nx = px / width;
-      const ny = py / height;
+      const { r, g, b } = color;
+      const nx = (x + GRID_SIZE / 2) / width;
+      const ny = (y + GRID_SIZE / 2) / height;
       const hsb = rgbToHsb(r, g, b);
       const brightnessScaler = hsb.v;
       const saturationScaler = Math.max(hsb.s, 0.12);
@@ -100,7 +138,7 @@ export function generateMarksFromImageData(imageData, width, height, maxBreaks =
         rot,
         mw,
         mh,
-        sortKey: distFromCenter(nx, ny) + wobble(nx, ny),
+        sortKey: distFromCenter(nx, ny) + centerWobble(nx, ny),
       });
     }
   }
@@ -145,16 +183,28 @@ export function expandMark(compact, layout) {
   const saturationScale = mh100 / 100;
   const shapeScale = Math.max(brightnessScale, saturationScale, 0.85);
 
+  const h1 = markHash(nx1k, ny1k, 1);
+  const h2 = markHash(nx1k, ny1k, 2);
+  const h6 = markHash(nx1k, ny1k, 6);
+
+  const baseX = layout.offsetX + (nx1k / 1000) * layout.drawW;
+  const baseY = layout.offsetY + (ny1k / 1000) * layout.drawH;
+  const size = cellSize * Math.max(2.0, shapeScale * 2.75);
+
   return {
-    x: layout.offsetX + (nx1k / 1000) * layout.drawW,
-    y: layout.offsetY + (ny1k / 1000) * layout.drawH,
+    x: baseX + (h1 - 0.5) * cellSize * 0.16,
+    y: baseY + (h2 - 0.5) * cellSize * 0.16,
     pigment: { r, g, b },
-    rotation: (rot255 / 255) * Math.PI * 2,
+    rotation: (rot255 / 255) * Math.PI * 2 + (h6 - 0.5) * 0.5,
     cellSize,
-    w: cellSize * Math.max(1.75, shapeScale * 2.4),
-    h: cellSize * Math.max(1.75, shapeScale * 2.4),
+    w: size,
+    h: size * lerpHash(h1, 0.82, 1.18),
     breakIndex,
   };
+}
+
+function lerpHash(hash, lo, hi) {
+  return lo + hash * (hi - lo);
 }
 
 export function computeImageLayout(sampleWidth, sampleHeight, screenWidth, screenHeight) {
