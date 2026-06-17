@@ -1,26 +1,27 @@
 /**
- * Watercolor reveal — paints a Met artwork progressively via sampled grid marks.
- * Each break adds marks assigned to that break; unrevealed areas stay white.
+ * Watercolor reveal — Met artwork marks painted with organic bleed trails.
  */
 
 import {
   computeImageLayout,
   expandMark,
 } from './mark-utils.js';
+import { createWatercolorTools } from './watercolor.js';
 
 const DEFAULT_BREAK_MS = 5 * 60 * 1000;
 const PAINT_OUT_MS = 25000;
-const MAX_POOLS = 64;
-const MAX_AGENTS = 1400;
-const WHITE_PIGMENT = { r: 255, g: 252, b: 247 };
+const MAX_MARK_POOLS = 80;
+const MAX_FALLBACK_POOLS = 64;
 
 export function createPaintSketch(container, { onPaintInComplete, onPaintOutComplete, onReady } = {}) {
   const api = {};
 
   const instance = new p5((p) => {
+    const wc = createWatercolorTools(p);
+
     let wash;
-    let pools = [];
-    let tideOffset = 0;
+    let markPools = [];
+    let fallbackPools = [];
     let mode = 'idle';
     let paintInDurationMs = DEFAULT_BREAK_MS;
     let paintInStart = 0;
@@ -36,93 +37,23 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let breakMarks = [];
     let paintedMarkCount = 0;
 
-    function screenDiagonal() {
-      return p.sqrt(p.width * p.width + p.height * p.height);
-    }
-
     function resetWash() {
       wash = p.createGraphics(p.width, p.height);
       wash.noStroke();
       wash.background(255, 255, 255);
     }
 
-    function strokeScale(strength) {
-      return p.lerp(0.5, 1, p.pow(strength, 0.75));
-    }
-
-    function shuffleArray(items) {
-      const copy = items.slice();
-      for (let i = copy.length - 1; i > 0; i -= 1) {
-        const j = p.floor(p.random(i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
+    function sortMarksCenterOut(marks) {
+      if (!markLayout) {
+        return marks;
       }
-      return copy;
-    }
-
-    function depositDab(g, x, y, radius, pigment, alpha, edgeBias = 0) {
-      const layers = p.floor(p.random(3, 6));
-      for (let layer = 0; layer < layers; layer += 1) {
-        const t = layer / layers;
-        const r = radius * (1 - t * 0.72) * p.random(0.82, 1.18);
-        const a = alpha * (1 - t * 0.45) * p.random(0.75, 1.2);
-
-        g.fill(pigment.r, pigment.g, pigment.b, a * (1 - edgeBias * 0.25));
-        g.beginShape();
-        const verts = p.floor(p.random(7, 13));
-        for (let v = 0; v < verts; v += 1) {
-          const ang = (p.TWO_PI / verts) * v + p.random(-0.35, 0.35);
-          const n = p.noise(
-            x * 0.011 + p.cos(ang) * 0.4,
-            y * 0.011 + p.sin(ang) * 0.4,
-            layer + v * 0.07,
-          );
-          const wobble = 0.28 + n * 0.92;
-          const rx = r * wobble * p.random(0.85, 1.2);
-          const ry = r * wobble * p.random(0.65, 1.35);
-          g.vertex(x + p.cos(ang) * rx, y + p.sin(ang) * ry);
-        }
-        g.endShape(p.CLOSE);
-      }
-    }
-
-    function depositImageMark(g, mark) {
-      const { x, y, w, h, rotation, pigment } = mark;
-      const alpha = p.random(5, 11);
-
-      g.push();
-      g.translate(x, y);
-      g.rotate(rotation + p.random(-0.25, 0.25));
-
-      const scaleX = w / Math.max(w, h);
-      const scaleY = h / Math.max(w, h);
-      g.scale(scaleX, scaleY);
-
-      depositDab(g, 0, 0, Math.max(w, h) * 0.42, pigment, alpha);
-      depositDab(
-        g,
-        p.random(-2.5, 2.5),
-        p.random(-2.5, 2.5),
-        Math.max(w, h) * p.random(0.22, 0.38),
-        pigment,
-        alpha * p.random(0.35, 0.6),
-      );
-      g.pop();
-    }
-
-    function applyPaperTexture(g, strength) {
-      const count = p.floor(p.map(strength, 0, 1, 2, 6));
-      for (let i = 0; i < count; i += 1) {
-        const x = p.random(p.width);
-        const y = p.random(p.height);
-        depositDab(
-          g,
-          x,
-          y,
-          p.random(18, 55),
-          WHITE_PIGMENT,
-          p.random(0.4, 1.2) * strength,
-        );
-      }
+      const cx = markLayout.offsetX + markLayout.drawW * 0.5;
+      const cy = markLayout.offsetY + markLayout.drawH * 0.5;
+      return marks.slice().sort((a, b) => {
+        const da = p.dist(a.x, a.y, cx, cy) + p.random(-12, 12);
+        const db = p.dist(b.x, b.y, cx, cy) + p.random(-12, 12);
+        return da - db;
+      });
     }
 
     function prepareImageBreakMarks() {
@@ -139,145 +70,103 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       markLayout.gridSize = marksData.gridSize;
 
       const expanded = marksData.marks.map((compact) => expandMark(compact, markLayout));
-      return shuffleArray(expanded);
+      return sortMarksCenterOut(expanded);
+    }
+
+    function spawnMarkPool(mark) {
+      if (markPools.length >= MAX_MARK_POOLS) {
+        markPools.shift();
+      }
+      markPools.push(wc.createMarkBleedPool(mark));
+    }
+
+    function paintSingleMark(mark) {
+      wc.depositOrganicMark(wash, mark);
+      spawnMarkPool(mark);
     }
 
     function paintImageMarksUpTo(targetCount) {
       const end = p.min(targetCount, breakMarks.length);
       while (paintedMarkCount < end) {
-        depositImageMark(wash, breakMarks[paintedMarkCount]);
+        paintSingleMark(breakMarks[paintedMarkCount]);
         paintedMarkCount += 1;
       }
     }
 
-    function pigmentFor(x, y, seed = 0) {
-      const n = p.noise(x * 0.003, y * 0.003, seed);
+    function updateMarkPools(scale) {
+      markPools = markPools.filter((pool) => pool.alive());
+      for (const pool of markPools) {
+        pool.update(wash, scale);
+      }
+    }
+
+    function createFallbackPool(x, y) {
       return {
-        r: p.constrain(95 + n * 115 + p.random(-10, 10), 80, 220),
-        g: p.constrain(72 + p.noise(x * 0.005, y * 0.008, seed + 40) * 100, 58, 190),
-        b: p.constrain(62 + p.noise(x * 0.004, y * 0.006, seed + 80) * 110, 50, 185),
-      };
-    }
-
-    function depositOrganicStroke(g, x, y, radius, alpha, edgeBias, huePigment) {
-      depositDab(g, x, y, radius, huePigment, alpha, edgeBias);
-    }
-
-    class BleedAgent {
-      constructor(x, y, pool) {
-        this.x = x;
-        this.y = y;
-        this.pool = pool;
-        this.z = p.random(1000);
-        this.speed = p.random(1.0, 3.2);
-        this.wetness = p.random(0.6, 1);
-        this.radius = p.random(6, 18);
-        this.life = p.floor(p.random(130, 300));
-        this.age = 0;
-      }
-
-      alive() {
-        return this.age < this.life;
-      }
-
-      step(g, scale) {
-        this.age += 1;
-        const flowAngle =
-          p.noise(this.x * 0.0028, this.y * 0.0028, this.z) * p.TWO_PI * 2.4 +
-          p.noise(this.pool.seed, this.z * 0.5) * 0.9;
-        const meander = p.map(
-          p.noise(this.x * 0.008, this.y * 0.008, this.z * 1.7),
-          0,
-          1,
-          -1.4,
-          1.4,
-        );
-        const dir = flowAngle + meander + this.pool.driftAngle;
-        const pace = this.speed * this.wetness * p.lerp(0.65, 1, scale);
-        this.x += p.cos(dir) * pace;
-        this.y += p.sin(dir) * pace;
-        this.z += p.random(0.005, 0.014);
-        this.x += p.random(-1.4, 1.4) * scale;
-        this.y += p.random(-1.4, 1.4) * scale;
-
-        const fade = 1 - this.age / this.life;
-        const growth = p.lerp(0.55, 1, this.age / this.life);
-        const alpha = p.random(3.5, 8.5) * fade * this.wetness;
-        const size = this.radius * growth * scale * p.random(0.85, 1.4);
-        depositOrganicStroke(g, this.x, this.y, size, alpha, 0, this.pool.pigment);
-      }
-    }
-
-    class PaintPool {
-      constructor(x, y, options = {}) {
-        this.x = x;
-        this.y = y;
-        this.seed = p.random(10000);
-        this.driftAngle = options.driftAngle ?? p.random(-0.4, 0.4);
-        this.urgency = options.urgency ?? 1;
-        this.agents = [];
-        this.age = 0;
-        this.life = p.floor(p.random(260, 480));
-        this.spawnRate = p.random(0.48, 0.85);
-        this.pigment = pigmentFor(x, y, this.seed);
-        this.maxSpread = screenDiagonal() * p.random(0.45, 0.75) * this.urgency;
-
-        const initial = p.floor(p.random(8, 18) * this.urgency);
-        for (let i = 0; i < initial; i += 1) {
-          this.spawnAgent(x + p.random(-24, 24), y + p.random(-24, 24), 0.85);
-        }
-      }
-
-      spawnAgent(x, y, wetnessScale = 1) {
-        if (this.agents.length >= MAX_AGENTS / MAX_POOLS) {
-          return;
-        }
-        const agent = new BleedAgent(x, y, this);
-        agent.wetness *= wetnessScale;
-        agent.radius *= 0.9 + this.urgency * 0.12;
-        this.agents.push(agent);
-      }
-
-      alive() {
-        return this.age < this.life || this.agents.some((a) => a.alive());
-      }
-
-      update(g, soakStrength) {
-        this.age += 1;
-        const scale = strokeScale(soakStrength);
-
-        if (this.age < this.life && p.random() < this.spawnRate * soakStrength) {
-          const spread = p.lerp(14, this.maxSpread, p.pow(this.age / this.life, 0.6)) * scale;
-          for (let i = 0; i < p.floor(p.random(2, 5)); i += 1) {
-            const angle = p.random(p.TWO_PI);
-            const dist = p.random(0, spread) * p.sqrt(p.random());
-            this.spawnAgent(this.x + p.cos(angle) * dist, this.y + p.sin(angle) * dist, p.random(0.5, 1));
-          }
-        }
-
-        this.agents = this.agents.filter((agent) => agent.alive());
-        for (const agent of this.agents) {
-          agent.step(g, scale);
-        }
-      }
-    }
-
-    function randomSoakPoint() {
-      return {
-        x: p.random(p.width),
-        y: p.random(p.height),
+        x,
+        y,
+        pigment: {
+          r: p.random(90, 200),
+          g: p.random(70, 170),
+          b: p.random(60, 160),
+        },
         driftAngle: p.random(-0.5, 0.5),
-        urgency: p.random(0.95, 1.35),
+        agents: [],
+        age: 0,
+        life: p.floor(p.random(200, 360)),
+        spawnRate: p.random(0.4, 0.7),
+        maxAgents: 10,
+        spawnAgent(ax, ay, wetness = 1) {
+          if (this.agents.length >= this.maxAgents) {
+            return;
+          }
+          const agent = {
+            x: ax,
+            y: ay,
+            pool: this,
+            z: p.random(1000),
+            speed: p.random(0.8, 2.4),
+            wetness,
+            radius: p.random(5, 14),
+            life: p.floor(p.random(100, 220)),
+            age: 0,
+            alive() {
+              return this.age < this.life;
+            },
+            step(g, agentScale) {
+              this.age += 1;
+              const dir = p.noise(this.x * 0.003, this.y * 0.003, this.z) * p.TWO_PI * 2;
+              this.x += p.cos(dir) * this.speed * agentScale;
+              this.y += p.sin(dir) * this.speed * agentScale;
+              const fade = 1 - this.age / this.life;
+              wc.depositDab(g, this.x, this.y, this.radius * fade, this.pool.pigment, p.random(3, 7) * fade);
+            },
+          };
+          this.agents.push(agent);
+        },
+        alive() {
+          return this.age < this.life || this.agents.some((a) => a.alive());
+        },
+        update(g, poolScale) {
+          this.age += 1;
+          if (this.age < this.life && p.random() < this.spawnRate * poolScale) {
+            this.spawnAgent(this.x + p.random(-20, 20), this.y + p.random(-20, 20));
+          }
+          this.agents = this.agents.filter((a) => a.alive());
+          for (const agent of this.agents) {
+            agent.step(g, poolScale);
+          }
+        },
       };
     }
 
-    function spawnPools(count) {
+    function spawnFallbackPools(count) {
       for (let i = 0; i < count; i += 1) {
-        if (pools.length >= MAX_POOLS) {
-          pools.shift();
+        if (fallbackPools.length >= MAX_FALLBACK_POOLS) {
+          fallbackPools.shift();
         }
-        const point = randomSoakPoint();
-        pools.push(new PaintPool(point.x, point.y, point));
+        fallbackPools.push(
+          createFallbackPool(p.random(p.width), p.random(p.height)),
+        );
       }
     }
 
@@ -317,16 +206,13 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
     function sealBreakLayer() {
       if (useImageMode) {
-        applyPaperTexture(wash, 0.35);
+        for (let i = 0; i < 10; i += 1) {
+          updateMarkPools(0.95);
+        }
         return;
       }
 
-      for (let i = 0; i < 8; i += 1) {
-        const point = randomSoakPoint();
-        const pool = new PaintPool(point.x, point.y, { ...point, urgency: 1.2 });
-        pool.life = 60;
-        pools.push(pool);
-      }
+      spawnFallbackPools(6);
     }
 
     function finishPaintIn() {
@@ -337,10 +223,12 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       if (useImageMode) {
         paintImageMarksUpTo(breakMarks.length);
+        updateMarkPools(0.9);
       }
 
       sealBreakLayer();
-      pools = [];
+      markPools = [];
+      fallbackPools = [];
       mode = 'resting';
       drawComposite();
       p.noLoop();
@@ -358,8 +246,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
     function updateImagePaintIn(elapsed) {
       coverage = p.min(1, elapsed / paintInDurationMs);
+      const soakStrength = p.pow(coverage, 0.78);
       const targetCount = p.floor(coverage * breakMarks.length);
-      const batchSize = p.max(1, p.ceil((targetCount - paintedMarkCount) / 5));
+      const batchSize = p.max(2, p.ceil((targetCount - paintedMarkCount) / 3));
 
       for (let i = 0; i < batchSize; i += 1) {
         if (paintedMarkCount >= targetCount) {
@@ -368,9 +257,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
         paintImageMarksUpTo(paintedMarkCount + 1);
       }
 
-      if (p.frameCount % 18 === 0) {
-        applyPaperTexture(wash, 0.12);
-      }
+      updateMarkPools(soakStrength);
     }
 
     function updateGenerativePaintIn(elapsed) {
@@ -378,11 +265,11 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       const soakStrength = p.pow(coverage, 0.72);
 
       if (p.frameCount % p.floor(p.map(coverage, 0, 1, 5, 12)) === 0) {
-        spawnPools(p.floor(p.random(2, 4)));
+        spawnFallbackPools(p.floor(p.random(2, 4)));
       }
 
-      pools = pools.filter((pool) => pool.alive());
-      for (const pool of pools) {
+      fallbackPools = fallbackPools.filter((pool) => pool.alive());
+      for (const pool of fallbackPools) {
         pool.update(wash, soakStrength);
       }
     }
@@ -484,8 +371,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       coverage = 0;
       finishedPaintIn = false;
       finishedPaintOut = false;
-      tideOffset = p.random(100);
-      pools = [];
+      markPools = [];
+      fallbackPools = [];
       paintedMarkCount = 0;
       breakMarks = [];
       resetWash();
@@ -497,7 +384,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       if (useImageMode) {
         breakMarks = prepareImageBreakMarks();
       } else {
-        spawnPools(p.floor(p.map(breakNumber, 1, maxBreaks, 5, 8)));
+        spawnFallbackPools(p.floor(p.map(breakNumber, 1, maxBreaks, 5, 8)));
       }
 
       p.loop();
@@ -510,7 +397,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       mode = 'paintOut';
       paintOutStart = p.millis();
       finishedPaintOut = false;
-      pools = [];
+      markPools = [];
+      fallbackPools = [];
       p.loop();
     };
 
@@ -526,7 +414,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
     api.reset = () => {
       mode = 'idle';
-      pools = [];
+      markPools = [];
+      fallbackPools = [];
       coverage = 0;
       finishedPaintIn = false;
       finishedPaintOut = false;

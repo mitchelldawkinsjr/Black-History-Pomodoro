@@ -140,15 +140,19 @@ export async function generateMarksFromImageUrl(imageUrl, objectID, maxBreaks = 
 
 export function expandMark(compact, layout) {
   const [nx1k, ny1k, r, g, b, rot255, mw100, mh100, breakIndex] = compact;
-  const gridSize = layout.gridSize * layout.scale;
+  const cellSize = layout.gridSize * layout.scale;
+  const brightnessScale = mw100 / 100;
+  const saturationScale = mh100 / 100;
+  const shapeScale = Math.max(brightnessScale, saturationScale, 0.85);
 
   return {
     x: layout.offsetX + (nx1k / 1000) * layout.drawW,
     y: layout.offsetY + (ny1k / 1000) * layout.drawH,
     pigment: { r, g, b },
     rotation: (rot255 / 255) * Math.PI * 2,
-    w: gridSize * (mw100 / 100) * 1.1,
-    h: gridSize * (mh100 / 100) * 1.1,
+    cellSize,
+    w: cellSize * Math.max(1.75, shapeScale * 2.4),
+    h: cellSize * Math.max(1.75, shapeScale * 2.4),
     breakIndex,
   };
 }

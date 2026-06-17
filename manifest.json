@@ -41,6 +41,7 @@
         "overlay/overlay.js",
         "overlay/overlay.css",
         "overlay/paint-sketch.js",
+        "overlay/watercolor.js",
         "overlay/mark-utils.js",
         "lib/p5.min.js",
         "data/prompts.json"

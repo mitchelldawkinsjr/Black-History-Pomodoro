@@ -28,23 +28,29 @@ export function createWatercolorTools(p) {
   }
 
   function depositOrganicMark(g, mark) {
-    const { x, y, w, h, rotation, pigment } = mark;
-    const alpha = p.random(5, 11);
-    const baseSize = Math.max(w, h);
+    const { x, y, w, h, rotation, pigment, cellSize } = mark;
+    const base = cellSize ?? Math.max(w, h);
+    const coverRadius = base * 0.78;
 
     g.push();
     g.translate(x, y);
-    g.rotate(rotation + p.random(-0.25, 0.25));
-    g.scale(w / baseSize, h / baseSize);
+    g.rotate(rotation + p.random(-0.2, 0.2));
 
-    depositDab(g, 0, 0, baseSize * 0.4, pigment, alpha);
+    // Large base wash — must overlap neighbouring grid cells to form a continuous image.
+    depositDab(g, 0, 0, coverRadius, pigment, p.random(32, 52));
+    depositDab(g, p.random(-5, 5), p.random(-5, 5), coverRadius * 0.72, pigment, p.random(22, 38));
+    depositDab(g, p.random(-3, 3), p.random(-3, 3), coverRadius * 0.5, pigment, p.random(14, 26));
+
+    // Directional stroke (hue → rotation, brightness/saturation → shape)
+    g.scale(w / Math.max(w, h), h / Math.max(w, h));
+    depositDab(g, 0, 0, Math.max(w, h) * 0.48, pigment, p.random(18, 32));
     depositDab(
       g,
-      p.random(-3, 3),
-      p.random(-3, 3),
-      baseSize * p.random(0.2, 0.36),
+      p.random(-4, 4),
+      p.random(-4, 4),
+      Math.max(w, h) * p.random(0.28, 0.42),
       pigment,
-      alpha * p.random(0.35, 0.65),
+      p.random(12, 22),
     );
     g.pop();
   }
@@ -57,8 +63,8 @@ export function createWatercolorTools(p) {
       z: p.random(1000),
       speed: p.random(0.6, 2.2),
       wetness: p.random(0.55, 1),
-      radius: p.random(4, 14),
-      life: p.floor(p.random(90, 200)),
+      radius: p.random(8, 18),
+      life: p.floor(p.random(100, 180)),
       age: 0,
       alive() {
         return this.age < this.life;
@@ -82,8 +88,8 @@ export function createWatercolorTools(p) {
         this.z += p.random(0.004, 0.012);
 
         const fade = 1 - this.age / this.life;
-        const alpha = p.random(3, 7.5) * fade * this.wetness;
-        const size = this.radius * p.lerp(0.5, 1, this.age / this.life) * scale;
+        const alpha = p.random(10, 22) * fade * this.wetness;
+        const size = this.radius * p.lerp(0.65, 1.15, this.age / this.life) * scale;
         depositDab(g, this.x, this.y, size, this.pool.pigment, alpha);
       },
     };
@@ -93,13 +99,14 @@ export function createWatercolorTools(p) {
     const pool = {
       x: mark.x,
       y: mark.y,
+      cellSize: mark.cellSize ?? Math.max(mark.w, mark.h),
       pigment: mark.pigment,
       driftAngle: mark.rotation + p.random(-0.35, 0.35),
       agents: [],
       age: 0,
-      life: options.life ?? p.floor(p.random(70, 130)),
-      spawnRate: options.spawnRate ?? p.random(0.35, 0.6),
-      maxAgents: options.maxAgents ?? 8,
+      life: options.life ?? p.floor(p.random(90, 160)),
+      spawnRate: options.spawnRate ?? p.random(0.5, 0.85),
+      maxAgents: options.maxAgents ?? 10,
       spawnAgent(x, y, wetnessScale = 1) {
         if (this.agents.length >= this.maxAgents) {
           return;
@@ -115,7 +122,7 @@ export function createWatercolorTools(p) {
       update(g, scale) {
         this.age += 1;
         if (this.age < this.life && p.random() < this.spawnRate * scale) {
-          const spread = p.lerp(6, 28, p.pow(this.age / this.life, 0.65));
+          const spread = p.lerp(10, this.cellSize * 1.15, p.pow(this.age / this.life, 0.55));
           for (let i = 0; i < p.floor(p.random(1, 3)); i += 1) {
             const angle = p.random(p.TWO_PI);
             const dist = p.random(0, spread);
