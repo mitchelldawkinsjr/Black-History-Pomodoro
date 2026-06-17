@@ -16,7 +16,8 @@ import {
   loadDailyArt,
   saveDailyCanvas,
 } from './daily-art.js';
-import { getArtworkDisplay } from './reveal-tiers.js';
+import { getArtworkDisplay, getBreakRevealDisplay } from './reveal-tiers.js';
+import { packMarksForBreak } from './mark-generator.js';
 
 const STORAGE_KEY = 'paintPomodoroState';
 
@@ -216,6 +217,8 @@ async function beginBreak(options = {}) {
   });
   await schedulePhaseEndAlarm();
 
+  const breakReveal = getBreakRevealDisplay(art.artwork, breakNumber, MAX_DAILY_BREAKS);
+
   return sendOverlayToTargets({
     type: OVERLAY.COMMAND,
     command: 'START_BREAK',
@@ -223,7 +226,9 @@ async function beginBreak(options = {}) {
     previousCanvas,
     maxBreaks: MAX_DAILY_BREAKS,
     artwork: art.artwork,
+    marks: packMarksForBreak(art.marks, breakNumber),
     breakDurationMs,
+    breakReveal,
   });
 }
 

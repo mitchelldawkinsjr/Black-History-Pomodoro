@@ -9,6 +9,13 @@
   <body>
     <div id="overlay-root">
       <div id="paint-container"></div>
+      <aside id="reveal-hud" hidden aria-live="polite">
+        <p class="reveal-progress" id="reveal-progress">Break 1 of 10</p>
+        <p class="reveal-headline" id="reveal-headline"></p>
+        <p class="reveal-clue" id="reveal-clue"></p>
+        <p class="reveal-timer" id="reveal-timer">05:00</p>
+        <p class="reveal-attribution">Courtesy of The Metropolitan Museum of Art</p>
+      </aside>
     </div>
     <script src="../lib/p5.min.js"></script>
     <script type="module" src="overlay.js"></script>

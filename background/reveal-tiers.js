@@ -52,6 +52,38 @@ export function getArtworkHeadline(artwork, breakCount) {
   return 'A mystery from The Met';
 }
 
+export function getClueForBreak(artwork, breakNumber) {
+  if (!artwork || breakNumber < 1) {
+    return null;
+  }
+
+  const tier = REVEAL_TIERS.find((entry) => entry.breakAt === breakNumber);
+  if (!tier) {
+    return null;
+  }
+
+  const value = artwork[tier.field]?.trim?.() ?? artwork[tier.field];
+  if (!value) {
+    return null;
+  }
+
+  return { label: tier.label, value, breakNumber };
+}
+
+export function getBreakRevealDisplay(artwork, breakNumber, maxBreaks = 10) {
+  const clue = getClueForBreak(artwork, breakNumber);
+  const priorBreakCount = Math.max(0, breakNumber - 1);
+
+  return {
+    breakNumber,
+    maxBreaks,
+    clue,
+    headline: getArtworkHeadline(artwork, priorBreakCount),
+    progressLabel: `Break ${breakNumber} of ${maxBreaks}`,
+    attribution: 'Courtesy of The Metropolitan Museum of Art',
+  };
+}
+
 export function getArtworkDisplay(artwork, breakCount) {
   const clues = getUnlockedClues(artwork, breakCount);
   const latestClue = clues.length ? clues[clues.length - 1] : null;

@@ -1,4 +1,5 @@
 import { pickDailyArtwork } from './met-api.js';
+import { MARKS_VERSION, generateMarksFromImageUrl } from './mark-generator.js';
 
 export const DAILY_ART_KEY = 'paintPomodoroDailyArt';
 export const MAX_DAILY_BREAKS = 10;
@@ -13,6 +14,7 @@ export function createDefaultDailyArt() {
     breakCount: 0,
     canvasDataUrl: null,
     artwork: null,
+    marks: null,
     selectionSeed: getTodayKey(),
   };
 }
@@ -48,23 +50,58 @@ export async function ensureDailyArtReset() {
 
 let artworkFetchPromise = null;
 
+function marksNeedRegeneration(art) {
+  if (!art.artwork?.objectID) {
+    return false;
+  }
+  if (!art.marks?.marks?.length) {
+    return true;
+  }
+  return (
+    art.marks.objectID !== art.artwork.objectID ||
+    art.marks.version !== MARKS_VERSION
+  );
+}
+
+async function ensureDailyMarks(art) {
+  if (!art.artwork?.objectID || !marksNeedRegeneration(art)) {
+    return art;
+  }
+
+  const imageUrl = art.artwork.primaryImageSmall || art.artwork.primaryImage;
+  const marks = await generateMarksFromImageUrl(
+    imageUrl,
+    art.artwork.objectID,
+    MAX_DAILY_BREAKS,
+  );
+  const updated = { ...art, marks };
+  await saveDailyArt(updated);
+  return updated;
+}
+
 export async function ensureDailyArtwork() {
   const art = await ensureDailyArtReset();
-  if (art.artwork?.objectID) {
+  if (art.artwork?.objectID && art.marks?.marks?.length && !marksNeedRegeneration(art)) {
     return art;
   }
 
   if (!artworkFetchPromise) {
     artworkFetchPromise = (async () => {
       try {
-        const artwork = await pickDailyArtwork(art.selectionSeed ?? art.dateKey);
-        const current = await ensureDailyArtReset();
-        if (current.artwork?.objectID) {
-          return current;
+        let current = await ensureDailyArtReset();
+
+        if (!current.artwork?.objectID) {
+          const artwork = await pickDailyArtwork(current.selectionSeed ?? current.dateKey);
+          current = await ensureDailyArtReset();
+          if (!current.artwork?.objectID) {
+            current = { ...current, artwork, selectionSeed: current.dateKey };
+            await saveDailyArt(current);
+          } else {
+            current = await loadDailyArt();
+          }
         }
-        const updated = { ...current, artwork, selectionSeed: current.dateKey };
-        await saveDailyArt(updated);
-        return updated;
+
+        return ensureDailyMarks(current);
       } finally {
         artworkFetchPromise = null;
       }
