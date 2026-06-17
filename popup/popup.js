@@ -11,6 +11,9 @@ const btnPrimary = document.getElementById('btn-primary');
 const btnSecondary = document.getElementById('btn-secondary');
 const btnActivate = document.getElementById('btn-activate');
 const dailyBreakCountEl = document.getElementById('daily-break-count');
+const artworkTitleEl = document.getElementById('artwork-title');
+const artworkClueEl = document.getElementById('artwork-clue');
+const artworkBadgeEl = document.getElementById('artwork-badge');
 const breakGridEl = document.getElementById('break-grid');
 
 let currentState = null;
@@ -28,7 +31,6 @@ function getDisplayRemainingMs(state) {
     return state.settings.focusMinutes * 60 * 1000;
   }
   if (
-    state.phase === PHASE.PAINTING_IN ||
     state.phase === PHASE.PAINTING_OUT
   ) {
     return 0;
@@ -46,7 +48,27 @@ function getDisplayRemainingMs(state) {
 
 function renderDailyArt(state) {
   const daily = state.dailyArt ?? { breakCount: 0, maxBreaks: 10 };
+  const display = daily.artworkDisplay ?? {
+    headline: daily.artworkReady ? 'Today\'s painting' : 'Loading today\'s painting…',
+    latestClue: null,
+    titleUnlocked: false,
+  };
+
   dailyBreakCountEl.textContent = String(daily.breakCount);
+  artworkTitleEl.textContent = display.headline;
+
+  if (display.latestClue) {
+    artworkClueEl.hidden = false;
+    artworkClueEl.textContent = `${display.latestClue.label}: ${display.latestClue.value}`;
+  } else if (daily.breakCount === 0 && daily.artworkReady) {
+    artworkClueEl.hidden = false;
+    artworkClueEl.textContent = 'Take a break to start revealing it.';
+  } else {
+    artworkClueEl.hidden = true;
+    artworkClueEl.textContent = '';
+  }
+
+  artworkBadgeEl.textContent = display.titleUnlocked ? 'Revealed' : 'The Met';
 
   breakGridEl.querySelectorAll('.btn-break').forEach((btn) => {
     const n = Number(btn.dataset.break);
@@ -117,17 +139,8 @@ function render(state) {
     return;
   }
 
-  if (state.phase === PHASE.PAINTING_IN) {
-    timerEl.textContent = '…';
-    timerHintEl.textContent = 'Adding today\'s layer to your canvas…';
-    btnPrimary.hidden = true;
-    return;
-  }
-
-  btnPrimary.hidden = false;
-
   if (state.phase === PHASE.RESTING) {
-    timerHintEl.textContent = 'Take a real break away from the screen.';
+    timerHintEl.textContent = 'Break — today\'s painting is revealing.';
     btnPrimary.textContent = 'Skip break';
     btnPrimary.dataset.action = 'skip';
     return;
@@ -137,7 +150,10 @@ function render(state) {
     timerEl.textContent = '…';
     timerHintEl.textContent = 'Paint is lifting — your screen returns soon.';
     btnPrimary.hidden = true;
+    return;
   }
+
+  btnPrimary.hidden = false;
 }
 
 async function sendMessage(type, payload = {}) {

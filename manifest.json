@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Paint Pomodoro",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A Pomodoro timer that covers your screen in watercolor when it's time to rest.",
   "icons": {
     "16": "assets/icons/icon16.png",
@@ -22,7 +22,11 @@
     "type": "module"
   },
   "permissions": ["alarms", "storage", "tabs", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "https://collectionapi.metmuseum.org/*",
+    "https://images.metmuseum.org/*",
+    "<all_urls>"
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

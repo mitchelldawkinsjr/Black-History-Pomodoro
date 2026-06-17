@@ -11,21 +11,24 @@ import {
   MAX_DAILY_BREAKS,
   clearDailyCanvas,
   ensureDailyArtReset,
+  ensureDailyArtwork,
   getNextBreakNumber,
   loadDailyArt,
   saveDailyCanvas,
 } from './daily-art.js';
+import { getArtworkDisplay } from './reveal-tiers.js';
 
 const STORAGE_KEY = 'paintPomodoroState';
-const PROMPTS_URL = chrome.runtime.getURL('data/prompts.json');
 
 let state = createDefaultState();
-let promptsCache = null;
 let pendingBreakNumber = null;
 
 async function loadState() {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
   state = stored[STORAGE_KEY] ?? createDefaultState();
+  if (state.phase === PHASE.PAINTING_IN) {
+    state.phase = PHASE.RESTING;
+  }
 }
 
 async function saveState() {
@@ -54,6 +57,8 @@ async function getPublicState() {
       breakCount: dailyArt.breakCount,
       dateKey: dailyArt.dateKey,
       maxBreaks: MAX_DAILY_BREAKS,
+      artworkDisplay: getArtworkDisplay(dailyArt.artwork, dailyArt.breakCount),
+      artworkReady: Boolean(dailyArt.artwork?.objectID),
     },
   };
 }
@@ -75,23 +80,6 @@ async function setState(nextState) {
   state = nextState;
   await saveState();
   await broadcastState();
-}
-
-async function getPrompts() {
-  if (promptsCache) {
-    return promptsCache;
-  }
-  const response = await fetch(PROMPTS_URL);
-  promptsCache = await response.json();
-  return promptsCache;
-}
-
-async function pickRandomPrompt() {
-  const prompts = await getPrompts();
-  if (!prompts.length) {
-    return { type: 'action', text: 'Step away from the screen and rest your eyes.' };
-  }
-  return prompts[Math.floor(Math.random() * prompts.length)];
 }
 
 async function getActiveBrowsableTab() {
@@ -197,9 +185,8 @@ async function sendOverlayCommand(command, payload = {}) {
   });
 }
 
-async function beginPaintIn(options = {}) {
-  await ensureDailyArtReset();
-  const art = await loadDailyArt();
+async function beginBreak(options = {}) {
+  const art = await ensureDailyArtwork();
 
   let breakNumber;
   let previousCanvas = art.canvasDataUrl;
@@ -218,27 +205,8 @@ async function beginPaintIn(options = {}) {
   }
 
   pendingBreakNumber = breakNumber;
+  const breakDurationMs = state.settings.breakMinutes * 60 * 1000;
 
-  await setState({
-    ...state,
-    phase: PHASE.PAINTING_IN,
-    phaseStartedAt: Date.now(),
-    pausedAt: null,
-    remainingMs: null,
-  });
-  await clearAlarm();
-
-  return sendOverlayToTargets({
-    type: OVERLAY.COMMAND,
-    command: 'PAINT_IN',
-    breakNumber,
-    previousCanvas,
-    maxBreaks: MAX_DAILY_BREAKS,
-  });
-}
-
-async function beginRestBreak() {
-  const prompt = await pickRandomPrompt();
   await setState({
     ...state,
     phase: PHASE.RESTING,
@@ -246,8 +214,17 @@ async function beginRestBreak() {
     pausedAt: null,
     remainingMs: null,
   });
-  await sendOverlayCommand('SHOW_PROMPT', { prompt });
   await schedulePhaseEndAlarm();
+
+  return sendOverlayToTargets({
+    type: OVERLAY.COMMAND,
+    command: 'START_BREAK',
+    breakNumber,
+    previousCanvas,
+    maxBreaks: MAX_DAILY_BREAKS,
+    artwork: art.artwork,
+    breakDurationMs,
+  });
 }
 
 async function beginPaintOut() {
@@ -278,7 +255,6 @@ async function startFocus() {
 async function pauseTimer() {
   if (
     state.phase === PHASE.IDLE ||
-    state.phase === PHASE.PAINTING_IN ||
     state.phase === PHASE.PAINTING_OUT ||
     state.pausedAt !== null
   ) {
@@ -330,7 +306,7 @@ async function handlePhaseEnd() {
   }
 
   if (state.phase === PHASE.FOCUSING) {
-    await beginPaintIn();
+    await beginBreak();
     return;
   }
 
@@ -340,10 +316,7 @@ async function handlePhaseEnd() {
 }
 
 async function handlePaintInDone() {
-  if (state.phase !== PHASE.PAINTING_IN) {
-    return;
-  }
-  await beginRestBreak();
+  // Painting finishes during the break; phase stays RESTING until the timer ends.
 }
 
 async function handlePaintOutDone() {
@@ -375,6 +348,11 @@ async function handleMessage(message) {
 
   switch (message.type) {
     case MESSAGE.GET_STATE:
+      ensureDailyArtwork()
+        .then(() => broadcastState())
+        .catch((error) => {
+          console.warn('[PaintPomodoro] Failed to load daily artwork', error);
+        });
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.START_FOCUS:
@@ -382,7 +360,7 @@ async function handleMessage(message) {
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.START_BREAK:
-      await beginRestBreak();
+      await beginBreak();
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.PAUSE:
@@ -402,7 +380,7 @@ async function handleMessage(message) {
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.ACTIVATE: {
-      const delivered = await beginPaintIn();
+      const delivered = await beginBreak();
       const publicState = await getPublicState();
       return {
         ok: true,
@@ -419,7 +397,7 @@ async function handleMessage(message) {
       if (!breakNumber || breakNumber < 1 || breakNumber > MAX_DAILY_BREAKS) {
         return { ok: false, error: 'Invalid break number.' };
       }
-      const delivered = await beginPaintIn({ testBreakNumber: breakNumber });
+      const delivered = await beginBreak({ testBreakNumber: breakNumber });
       const publicState = await getPublicState();
       return {
         ok: true,
@@ -454,19 +432,21 @@ async function handleMessage(message) {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await loadState();
+  ensureDailyArtwork()
+    .then(() => broadcastState())
+    .catch((error) => {
+      console.warn('[PaintPomodoro] Failed to load daily artwork on install', error);
+    });
   if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
     if (state.pausedAt === null) {
       await schedulePhaseEndAlarm();
     }
   }
-  if (state.phase === PHASE.PAINTING_IN) {
-    await showOverlayOnAllTabs();
-    await sendOverlayCommand('PAINT_IN');
-  }
   if (state.phase === PHASE.RESTING) {
     await showOverlayOnAllTabs();
-    const prompt = await pickRandomPrompt();
-    await sendOverlayCommand('SHOW_PROMPT', { prompt });
+    await sendOverlayCommand('START_BREAK', {
+      breakDurationMs: state.settings.breakMinutes * 60 * 1000,
+    });
   }
   if (state.phase === PHASE.PAINTING_OUT) {
     await showOverlayOnAllTabs();
@@ -476,6 +456,11 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 loadState().then(async () => {
   await ensureDailyArtReset();
+  ensureDailyArtwork()
+    .then(() => broadcastState())
+    .catch((error) => {
+      console.warn('[PaintPomodoro] Failed to prefetch daily artwork', error);
+    });
   if (state.phase === PHASE.FOCUSING || state.phase === PHASE.RESTING) {
     if (state.pausedAt === null) {
       await schedulePhaseEndAlarm();

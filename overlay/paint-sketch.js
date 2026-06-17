@@ -4,7 +4,7 @@
  * Canvas persists as a full composite between breaks.
  */
 
-const PAINT_IN_MS = 28000;
+const DEFAULT_BREAK_MS = 5 * 60 * 1000;
 const PAINT_OUT_MS = 25000;
 const MAX_POOLS = 64;
 const MAX_AGENTS = 1400;
@@ -18,6 +18,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let pools = [];
     let tideOffset = 0;
     let mode = 'idle';
+    let paintInDurationMs = DEFAULT_BREAK_MS;
     let paintInStart = 0;
     let paintOutStart = 0;
     let coverage = 0;
@@ -427,7 +428,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       if (mode === 'paintIn') {
         const elapsed = p.millis() - paintInStart;
-        coverage = p.min(1, elapsed / PAINT_IN_MS);
+        coverage = p.min(1, elapsed / paintInDurationMs);
         const soakStrength = p.pow(coverage, 0.72);
 
         if (p.frameCount % p.floor(p.map(coverage, 0, 1, 5, 12)) === 0) {
@@ -440,7 +441,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
           applyAmbientMist(wash, soakStrength * 0.5);
         }
 
-        if (elapsed >= PAINT_IN_MS) {
+        if (elapsed >= paintInDurationMs) {
           finishPaintIn();
         }
       }
@@ -497,6 +498,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       p.resizeCanvas(w, h);
       breakNumber = options.breakNumber ?? 1;
       maxBreaks = options.maxBreaks ?? 10;
+      paintInDurationMs = options.breakDurationMs ?? DEFAULT_BREAK_MS;
       mode = 'paintIn';
       paintInStart = p.millis();
       paintOutStart = 0;
@@ -516,6 +518,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     };
 
     api.startPaintOut = () => {
+      if (mode === 'paintIn' && !finishedPaintIn) {
+        finishPaintIn();
+      }
       mode = 'paintOut';
       paintOutStart = p.millis();
       finishedPaintOut = false;

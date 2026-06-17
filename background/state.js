@@ -86,10 +86,8 @@ export function getPhaseLabel(phase) {
   switch (phase) {
     case PHASE.FOCUSING:
       return 'Focus session';
-    case PHASE.PAINTING_IN:
-      return 'Paint spreading…';
     case PHASE.RESTING:
-      return 'Rest break';
+      return 'Rest break — painting';
     case PHASE.PAINTING_OUT:
       return 'Paint lifting…';
     default:

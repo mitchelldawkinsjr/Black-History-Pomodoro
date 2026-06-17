@@ -1,3 +1,5 @@
+import { pickDailyArtwork } from './met-api.js';
+
 export const DAILY_ART_KEY = 'paintPomodoroDailyArt';
 export const MAX_DAILY_BREAKS = 10;
 
@@ -10,6 +12,8 @@ export function createDefaultDailyArt() {
     dateKey: getTodayKey(),
     breakCount: 0,
     canvasDataUrl: null,
+    artwork: null,
+    selectionSeed: getTodayKey(),
   };
 }
 
@@ -42,6 +46,34 @@ export async function ensureDailyArtReset() {
   return fresh;
 }
 
+let artworkFetchPromise = null;
+
+export async function ensureDailyArtwork() {
+  const art = await ensureDailyArtReset();
+  if (art.artwork?.objectID) {
+    return art;
+  }
+
+  if (!artworkFetchPromise) {
+    artworkFetchPromise = (async () => {
+      try {
+        const artwork = await pickDailyArtwork(art.selectionSeed ?? art.dateKey);
+        const current = await ensureDailyArtReset();
+        if (current.artwork?.objectID) {
+          return current;
+        }
+        const updated = { ...current, artwork, selectionSeed: current.dateKey };
+        await saveDailyArt(updated);
+        return updated;
+      } finally {
+        artworkFetchPromise = null;
+      }
+    })();
+  }
+
+  return artworkFetchPromise;
+}
+
 export async function clearDailyCanvas() {
   const art = await ensureDailyArtReset();
   const cleared = { ...art, breakCount: 0, canvasDataUrl: null };
@@ -52,6 +84,7 @@ export async function clearDailyCanvas() {
 export async function saveDailyCanvas(dataUrl, breakCount) {
   const art = await ensureDailyArtReset();
   const updated = {
+    ...art,
     dateKey: getTodayKey(),
     breakCount,
     canvasDataUrl: dataUrl,

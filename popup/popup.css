@@ -92,6 +92,35 @@ body {
   background: #ddd4c8;
 }
 
+.artwork-section {
+  margin-bottom: 20px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e8e0d6;
+}
+
+.artwork-title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #374151;
+}
+
+.artwork-clue {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.artwork-progress {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #8b7355;
+}
+
 .test-section {
   margin-bottom: 20px;
 }

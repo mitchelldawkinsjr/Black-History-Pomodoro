@@ -1,8 +1,5 @@
 import { createPaintSketch } from './paint-sketch.js';
 
-const promptCard = document.getElementById('prompt-card');
-const promptText = document.getElementById('prompt-text');
-const promptType = document.getElementById('prompt-type');
 const container = document.getElementById('paint-container');
 
 const sketch = createPaintSketch(container, {
@@ -31,21 +28,6 @@ function signalReady() {
   );
 }
 
-function showPrompt(prompt) {
-  if (!prompt) {
-    return;
-  }
-  promptType.textContent = prompt.type ?? 'rest';
-  promptText.textContent = prompt.text ?? '';
-  promptCard.hidden = false;
-}
-
-function hidePrompt() {
-  promptCard.hidden = true;
-  promptText.textContent = '';
-  promptType.textContent = '';
-}
-
 async function waitForApi(maxAttempts = 120) {
   for (let i = 0; i < maxAttempts; i += 1) {
     const api = getApi();
@@ -55,6 +37,22 @@ async function waitForApi(maxAttempts = 120) {
     await new Promise((resolve) => requestAnimationFrame(resolve));
   }
   return null;
+}
+
+async function startBreakPaint(payload = {}) {
+  const api = await waitForApi();
+  if (!api) {
+    console.error('[PaintPomodoro overlay] Sketch API not ready');
+    return;
+  }
+
+  await api.startPaintIn({
+    breakNumber: payload.breakNumber ?? 1,
+    previousCanvas: payload.previousCanvas ?? null,
+    maxBreaks: payload.maxBreaks ?? 10,
+    artwork: payload.artwork ?? null,
+    breakDurationMs: payload.breakDurationMs,
+  });
 }
 
 async function handleCommand(command, payload = {}) {
@@ -71,20 +69,12 @@ async function handleCommand(command, payload = {}) {
     case 'RESIZE':
       sketch.instance?.windowResized?.();
       break;
+    case 'START_BREAK':
     case 'PAINT_IN':
-      hidePrompt();
-      await api.startPaintIn({
-        breakNumber: payload.breakNumber ?? 1,
-        previousCanvas: payload.previousCanvas ?? null,
-        maxBreaks: payload.maxBreaks ?? 10,
-      });
+      await startBreakPaint(payload);
       break;
     case 'PAINT_OUT':
-      hidePrompt();
       api.startPaintOut();
-      break;
-    case 'SHOW_PROMPT':
-      showPrompt(payload.prompt);
       break;
     case 'PAUSE':
       api.pause();
@@ -93,7 +83,6 @@ async function handleCommand(command, payload = {}) {
       api.resume();
       break;
     case 'RESET':
-      hidePrompt();
       api.reset();
       break;
     default:
