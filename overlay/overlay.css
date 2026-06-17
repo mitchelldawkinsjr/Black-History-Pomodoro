@@ -30,3 +30,61 @@ body {
   width: 100% !important;
   height: 100% !important;
 }
+
+#reveal-hud {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  max-width: min(360px, calc(100vw - 48px));
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255, 252, 247, 0.88);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  pointer-events: none;
+  z-index: 3;
+}
+
+#reveal-hud[hidden] {
+  display: none;
+}
+
+.reveal-progress {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a4f42;
+}
+
+.reveal-headline {
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #374151;
+}
+
+.reveal-clue {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.reveal-timer {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #1f2933;
+}
+
+.reveal-attribution {
+  margin: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+}
