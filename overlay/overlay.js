@@ -5,7 +5,6 @@ const revealHud = document.getElementById('reveal-hud');
 const revealHudToggle = document.getElementById('reveal-hud-toggle');
 const revealHudBody = document.getElementById('reveal-hud-body');
 const revealProgress = document.getElementById('reveal-progress');
-const revealHeadline = document.getElementById('reveal-headline');
 const revealClues = document.getElementById('reveal-clues');
 const revealTimer = document.getElementById('reveal-timer');
 
@@ -166,8 +165,6 @@ function showRevealHud(payload = {}) {
   const maxBreaks = reveal.maxBreaks ?? payload.maxBreaks ?? 10;
 
   revealProgress.textContent = reveal.progressLabel ?? `Break ${breakNumber} of ${maxBreaks}`;
-  revealHeadline.textContent = reveal.headline ?? '';
-  revealHeadline.hidden = !reveal.headline;
   renderRevealClues(reveal.unlockedClues ?? [], breakNumber);
   setHudExpanded(true);
 

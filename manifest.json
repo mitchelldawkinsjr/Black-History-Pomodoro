@@ -34,12 +34,16 @@
       "run_at": "document_idle"
     }
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
+  },
   "web_accessible_resources": [
     {
       "resources": [
         "overlay/overlay.html",
         "overlay/overlay.js",
         "overlay/overlay.css",
+        "shared/met-theme.css",
         "overlay/paint-sketch.js",
         "overlay/watercolor.js",
         "overlay/color-agents.js",

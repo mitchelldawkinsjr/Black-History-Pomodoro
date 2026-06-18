@@ -9,13 +9,13 @@ import {
 } from './state.js';
 import {
   MAX_DAILY_BREAKS,
-  clearDailyCanvas,
   ensureDailyArtReset,
   ensureDailyArtwork,
   getCanvasForBreak,
   getNextBreakNumber,
   loadDailyArt,
   rotateArtworkIfNewSession,
+  rotateToNextPainting,
   saveDailyCanvas,
 } from './daily-art.js';
 import { getArtworkDisplay, getBreakRevealDisplay } from './reveal-tiers.js';
@@ -197,24 +197,15 @@ async function sendOverlayCommand(command, payload = {}) {
   return result.delivered;
 }
 
-async function beginBreak(options = {}) {
-  const art = await ensureDailyArtwork();
+async function beginBreak() {
+  let art = await ensureDailyArtwork();
 
-  let breakNumber;
-  let previousCanvas = getCanvasForBreak(art);
-
-  if (options.testBreakNumber != null) {
-    breakNumber = options.testBreakNumber;
-    if (breakNumber === 1) {
-      await clearDailyCanvas();
-      previousCanvas = null;
-    } else {
-      const fresh = await loadDailyArt();
-      previousCanvas = getCanvasForBreak(fresh);
-    }
-  } else {
-    breakNumber = getNextBreakNumber(art);
+  if (art.breakCount >= MAX_DAILY_BREAKS) {
+    art = await rotateToNextPainting();
   }
+
+  const breakNumber = getNextBreakNumber(art);
+  const previousCanvas = getCanvasForBreak(art);
 
   pendingBreakNumber = breakNumber;
   const breakDurationMs = state.settings.breakMinutes * 60 * 1000;
@@ -446,23 +437,6 @@ async function handleMessage(message) {
 
     case MESSAGE.ACTIVATE: {
       const delivered = await beginBreak();
-      const publicState = await getPublicState();
-      return {
-        ok: true,
-        delivered,
-        state: publicState,
-        error: delivered
-          ? undefined
-          : 'Could not reach a webpage tab. Open a normal site (not chrome://) and try again.',
-      };
-    }
-
-    case MESSAGE.ACTIVATE_BREAK: {
-      const breakNumber = message.breakNumber;
-      if (!breakNumber || breakNumber < 1 || breakNumber > MAX_DAILY_BREAKS) {
-        return { ok: false, error: 'Invalid break number.' };
-      }
-      const delivered = await beginBreak({ testBreakNumber: breakNumber });
       const publicState = await getPublicState();
       return {
         ok: true,

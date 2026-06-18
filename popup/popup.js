@@ -16,7 +16,6 @@ const artworkCluesEl = document.getElementById('artwork-clues');
 const artworkBadgeEl = document.getElementById('artwork-badge');
 const artworkToggleEl = document.getElementById('artwork-toggle');
 const artworkBodyEl = document.getElementById('artwork-body');
-const breakGridEl = document.getElementById('break-grid');
 
 let currentState = null;
 let tickInterval = null;
@@ -97,11 +96,6 @@ function renderDailyArt(state) {
   }
 
   artworkBadgeEl.textContent = display.titleUnlocked ? 'Revealed' : 'The Met';
-
-  breakGridEl.querySelectorAll('.btn-break').forEach((btn) => {
-    const n = Number(btn.dataset.break);
-    btn.classList.toggle('is-done', n <= daily.breakCount);
-  });
 }
 
 function setArtworkExpanded(expanded) {
@@ -114,33 +108,6 @@ function setArtworkExpanded(expanded) {
 artworkToggleEl.addEventListener('click', () => {
   setArtworkExpanded(!artworkExpanded);
 });
-
-function buildBreakButtons() {
-  breakGridEl.innerHTML = '';
-  for (let i = 1; i <= 10; i += 1) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn-break';
-    btn.dataset.break = String(i);
-    btn.textContent = String(i);
-    btn.addEventListener('click', async () => {
-      timerHintEl.textContent = i === 1
-        ? 'Painting break 1… wait for it to finish before break 2.'
-        : `Painting break ${i} on today's canvas…`;
-      const response = await chrome.runtime.sendMessage({
-        type: MESSAGE.ACTIVATE_BREAK,
-        breakNumber: i,
-      });
-      if (response?.ok) {
-        render(response.state);
-      }
-      if (response?.error) {
-        timerHintEl.textContent = response.error;
-      }
-    });
-    breakGridEl.appendChild(btn);
-  }
-}
 
 function render(state) {
   currentState = state;
@@ -187,7 +154,7 @@ function render(state) {
 
   if (state.phase === PHASE.PAINTING_OUT) {
     timerEl.textContent = '…';
-    timerHintEl.textContent = 'Paint is lifting — your screen returns soon.';
+    timerHintEl.textContent = 'Returning to your screen…';
     btnPrimary.hidden = true;
     return;
   }
@@ -255,7 +222,6 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 async function init() {
-  buildBreakButtons();
   setArtworkExpanded(true);
   const response = await chrome.runtime.sendMessage({ type: MESSAGE.GET_STATE });
   if (response?.ok) {

@@ -130,6 +130,31 @@ export async function rotateArtworkIfNewSession() {
   return true;
 }
 
+export async function rotateToNextPainting() {
+  artworkFetchPromise = null;
+  const previous = await loadDailyArt();
+  const seed = `${getTodayKey()}-${Date.now()}`;
+
+  const artwork = await pickDailyArtwork(String(seed), {
+    excludeObjectID: previous.artwork?.objectID ?? null,
+  });
+
+  const fresh = {
+    ...createDefaultDailyArt(),
+    dateKey: getTodayKey(),
+    artwork,
+    selectionSeed: String(seed),
+    extensionSeed: previous.extensionSeed ?? String(seed),
+    breakCount: 0,
+    canvasDataUrl: null,
+    canvasArtworkId: null,
+    marks: null,
+  };
+
+  await saveDailyArt(fresh);
+  return ensureDailyMarks(fresh);
+}
+
 /** Pick a fresh artwork — used on extension install/reload. Daily rotation comes later. */
 export async function rotateForExtensionLoad(seed, previousObjectID = null) {
   artworkFetchPromise = null;
