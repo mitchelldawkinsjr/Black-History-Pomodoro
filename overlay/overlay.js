@@ -162,9 +162,8 @@ function renderRevealClues(unlockedClues, currentBreak) {
 function showRevealHud(payload = {}) {
   const reveal = payload.breakReveal ?? {};
   const breakNumber = reveal.breakNumber ?? payload.breakNumber ?? 1;
-  const maxBreaks = reveal.maxBreaks ?? payload.maxBreaks ?? 10;
 
-  revealProgress.textContent = reveal.progressLabel ?? `Break ${breakNumber} of ${maxBreaks}`;
+  revealProgress.textContent = reveal.progressLabel ?? `Break ${breakNumber}`;
   renderRevealClues(reveal.unlockedClues ?? [], breakNumber);
   setHudExpanded(true);
 

@@ -4,6 +4,7 @@ import {
   OVERLAY,
   PHASE,
   createDefaultState,
+  createTask,
   getPhaseDurationMs,
   getRemainingMs,
 } from './state.js';
@@ -13,6 +14,7 @@ import {
   ensureDailyArtwork,
   getCanvasForBreak,
   getNextBreakNumber,
+  getTodayKey,
   loadDailyArt,
   rotateArtworkIfNewSession,
   rotateToNextPainting,
@@ -29,10 +31,27 @@ let overlayTabId = null;
 
 async function loadState() {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
-  state = stored[STORAGE_KEY] ?? createDefaultState();
+  const loaded = stored[STORAGE_KEY] ?? createDefaultState();
+  const migrated = ensureTasksCurrentDay(loaded);
+  state = migrated;
+  if (loaded.tasksDateKey !== migrated.tasksDateKey) {
+    await saveState();
+  }
   if (state.phase === PHASE.PAINTING_IN) {
     state.phase = PHASE.RESTING;
   }
+}
+
+function ensureTasksCurrentDay(nextState) {
+  const today = getTodayKey();
+  if (nextState.tasksDateKey === today) {
+    return nextState;
+  }
+  return {
+    ...nextState,
+    tasks: [],
+    tasksDateKey: today,
+  };
 }
 
 async function saveState() {
@@ -310,11 +329,38 @@ async function resumeTimer() {
 }
 
 async function resetTimer() {
+  const { tasks, tasksDateKey } = state;
   await clearAlarm();
   overlayTabId = null;
   await hideOverlayOnAllTabs();
   await sendOverlayCommand('RESET');
-  await setState(createDefaultState());
+  await setState({ ...createDefaultState(), tasks, tasksDateKey });
+}
+
+async function addTask(text) {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  const current = ensureTasksCurrentDay(state);
+  await setState({
+    ...current,
+    tasks: [...current.tasks, createTask(trimmed)],
+    tasksDateKey: getTodayKey(),
+  });
+}
+
+async function toggleTask(taskId) {
+  const tasks = state.tasks.map((task) =>
+    task.id === taskId ? { ...task, done: !task.done } : task,
+  );
+  await setState({ ...state, tasks });
+}
+
+async function removeTask(taskId) {
+  const tasks = state.tasks.filter((task) => task.id !== taskId);
+  await setState({ ...state, tasks });
 }
 
 async function skipBreak() {
@@ -433,6 +479,18 @@ async function handleMessage(message) {
 
     case MESSAGE.SKIP_BREAK:
       await skipBreak();
+      return { ok: true, state: await getPublicState() };
+
+    case MESSAGE.ADD_TASK:
+      await addTask(message.text);
+      return { ok: true, state: await getPublicState() };
+
+    case MESSAGE.TOGGLE_TASK:
+      await toggleTask(message.taskId);
+      return { ok: true, state: await getPublicState() };
+
+    case MESSAGE.REMOVE_TASK:
+      await removeTask(message.taskId);
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.ACTIVATE: {

@@ -10,12 +10,16 @@ const timerHintEl = document.getElementById('timer-hint');
 const btnPrimary = document.getElementById('btn-primary');
 const btnSecondary = document.getElementById('btn-secondary');
 const btnActivate = document.getElementById('btn-activate');
-const dailyBreakCountEl = document.getElementById('daily-break-count');
+const artworkProgressEl = document.getElementById('artwork-progress');
 const artworkTitleEl = document.getElementById('artwork-title');
 const artworkCluesEl = document.getElementById('artwork-clues');
 const artworkBadgeEl = document.getElementById('artwork-badge');
 const artworkToggleEl = document.getElementById('artwork-toggle');
 const artworkBodyEl = document.getElementById('artwork-body');
+const taskFormEl = document.getElementById('task-form');
+const taskInputEl = document.getElementById('task-input');
+const taskListEl = document.getElementById('task-list');
+const taskBadgeEl = document.getElementById('task-badge');
 
 let currentState = null;
 let tickInterval = null;
@@ -56,7 +60,15 @@ function renderDailyArt(state) {
     titleUnlocked: false,
   };
 
-  dailyBreakCountEl.textContent = String(daily.breakCount);
+  const breakCount = daily.breakCount;
+  const currentBreak = state.phase === PHASE.RESTING ? breakCount + 1 : breakCount;
+  if (currentBreak > 0) {
+    artworkProgressEl.textContent = `Break ${currentBreak}`;
+    artworkProgressEl.hidden = false;
+  } else {
+    artworkProgressEl.hidden = true;
+  }
+
   artworkTitleEl.textContent = display.headline;
 
   artworkCluesEl.replaceChildren();
@@ -98,6 +110,67 @@ function renderDailyArt(state) {
   artworkBadgeEl.textContent = display.titleUnlocked ? 'Revealed' : 'The Met';
 }
 
+function renderTasks(state) {
+  const tasks = state.tasks ?? [];
+  const remaining = tasks.filter((task) => !task.done).length;
+
+  if (tasks.length === 0) {
+    taskBadgeEl.hidden = true;
+  } else if (remaining === 0) {
+    taskBadgeEl.hidden = false;
+    taskBadgeEl.textContent = 'All done';
+  } else {
+    taskBadgeEl.hidden = false;
+    taskBadgeEl.textContent = `${remaining} left`;
+  }
+
+  taskListEl.replaceChildren();
+
+  if (tasks.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'task-empty';
+    empty.textContent = 'Add tasks for this focus day.';
+    taskListEl.appendChild(empty);
+    return;
+  }
+
+  for (const task of tasks) {
+    const item = document.createElement('li');
+    item.className = 'task-item';
+    if (task.done) {
+      item.classList.add('is-done');
+    }
+
+    const label = document.createElement('label');
+    label.className = 'task-label';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'task-checkbox';
+    checkbox.checked = task.done;
+    checkbox.addEventListener('change', () => {
+      sendMessage(MESSAGE.TOGGLE_TASK, { taskId: task.id });
+    });
+
+    const text = document.createElement('span');
+    text.className = 'task-text';
+    text.textContent = task.text;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'task-remove';
+    removeBtn.setAttribute('aria-label', `Remove task: ${task.text}`);
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => {
+      sendMessage(MESSAGE.REMOVE_TASK, { taskId: task.id });
+    });
+
+    label.append(checkbox, text);
+    item.append(label, removeBtn);
+    taskListEl.appendChild(item);
+  }
+}
+
 function setArtworkExpanded(expanded) {
   artworkExpanded = expanded;
   artworkToggleEl.setAttribute('aria-expanded', String(expanded));
@@ -121,6 +194,7 @@ function render(state) {
   btnPrimary.hidden = false;
   timerEl.textContent = formatTime(remainingMs);
   renderDailyArt(state);
+  renderTasks(state);
 
   btnSecondary.hidden = state.phase === PHASE.IDLE;
 
@@ -213,6 +287,17 @@ btnActivate.addEventListener('click', async () => {
   if (response?.error) {
     timerHintEl.textContent = response.error;
   }
+});
+
+taskFormEl.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = taskInputEl.value;
+  if (!text.trim()) {
+    return;
+  }
+  await sendMessage(MESSAGE.ADD_TASK, { text });
+  taskInputEl.value = '';
+  taskInputEl.focus();
 });
 
 chrome.runtime.onMessage.addListener((message) => {

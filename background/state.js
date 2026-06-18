@@ -20,6 +20,9 @@ export const MESSAGE = {
   RESET: 'RESET',
   SKIP_BREAK: 'SKIP_BREAK',
   ACTIVATE: 'ACTIVATE',
+  ADD_TASK: 'ADD_TASK',
+  TOGGLE_TASK: 'TOGGLE_TASK',
+  REMOVE_TASK: 'REMOVE_TASK',
   CANVAS_SAVED: 'CANVAS_SAVED',
   PAINT_IN_DONE: 'PAINT_IN_DONE',
   PAINT_OUT_DONE: 'PAINT_OUT_DONE',
@@ -47,6 +50,15 @@ export function createDefaultState() {
     remainingMs: null,
     settings: { ...DEFAULT_SETTINGS },
     tasks: [],
+    tasksDateKey: null,
+  };
+}
+
+export function createTask(text) {
+  return {
+    id: crypto.randomUUID(),
+    text: text.trim(),
+    done: false,
   };
 }
 

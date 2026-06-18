@@ -210,7 +210,7 @@ export function getBreakRevealDisplay(artwork, breakNumber, maxBreaks = 10) {
     clue: getClueForBreak(artwork, breakNumber),
     unlockedClues,
     headline: getArtworkHeadline(artwork, breakNumber),
-    progressLabel: `Break ${breakNumber} of ${maxBreaks}`,
+    progressLabel: `Break ${breakNumber}`,
     attribution: 'Courtesy of The Metropolitan Museum of Art',
   };
 }

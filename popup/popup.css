@@ -314,13 +314,125 @@ body {
   margin: 0;
   padding: 0;
   list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.task-placeholder {
+.task-form {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: 10px;
+}
+
+.task-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+}
+
+.task-input::placeholder {
+  color: var(--color-ink-subtle);
+}
+
+.task-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.btn-task-add {
+  flex-shrink: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--color-accent-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-strong);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-task-add:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.task-empty {
   font-family: var(--font-serif);
   font-size: 0.875rem;
   font-style: italic;
   color: var(--color-ink-subtle);
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.task-item.is-done {
+  background: var(--color-surface-muted);
+}
+
+.task-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.task-checkbox {
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--color-accent-strong);
+}
+
+.task-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-ink);
+  word-break: break-word;
+}
+
+.task-item.is-done .task-text {
+  color: var(--color-ink-muted);
+  text-decoration: line-through;
+}
+
+.task-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--color-ink-subtle);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.task-remove:hover {
+  color: var(--color-accent);
+  background: rgba(154, 79, 66, 0.06);
 }
 
 /* ── Footer ── */
