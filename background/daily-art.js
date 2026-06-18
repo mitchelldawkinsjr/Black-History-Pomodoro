@@ -1,4 +1,9 @@
 import { pickDailyArtwork } from './met-api.js';
+import {
+  ensureCurrentArtworkRecorded,
+  getSeenObjectIDs,
+  recordSeenArtwork,
+} from './artwork-history.js';
 import { MARKS_VERSION, generateMarksFromImageUrl } from './mark-generator.js';
 
 export const DAILY_ART_KEY = 'paintPomodoroDailyArt';
@@ -58,6 +63,14 @@ export async function ensureDailyArtReset() {
 }
 
 let artworkFetchPromise = null;
+
+async function pickFreshArtwork(seed, extraExcludeIds = []) {
+  const seen = await getSeenObjectIDs();
+  const excludeObjectIDs = [...new Set([...seen, ...extraExcludeIds])];
+  const artwork = await pickDailyArtwork(String(seed), { excludeObjectIDs });
+  await recordSeenArtwork(artwork.objectID);
+  return artwork;
+}
 
 function marksNeedRegeneration(art) {
   if (!art.artwork?.objectID) {
@@ -135,9 +148,7 @@ export async function rotateToNextPainting() {
   const previous = await loadDailyArt();
   const seed = `${getTodayKey()}-${Date.now()}`;
 
-  const artwork = await pickDailyArtwork(String(seed), {
-    excludeObjectID: previous.artwork?.objectID ?? null,
-  });
+  const artwork = await pickFreshArtwork(seed, previous.artwork?.objectID ? [previous.artwork.objectID] : []);
 
   const fresh = {
     ...createDefaultDailyArt(),
@@ -155,13 +166,14 @@ export async function rotateToNextPainting() {
   return ensureDailyMarks(fresh);
 }
 
-/** Pick a fresh artwork — used on extension install/reload. Daily rotation comes later. */
+/** Pick a fresh artwork — used on extension install/reload. */
 export async function rotateForExtensionLoad(seed, previousObjectID = null) {
   artworkFetchPromise = null;
 
-  const artwork = await pickDailyArtwork(String(seed), {
-    excludeObjectID: previousObjectID,
-  });
+  const artwork = await pickFreshArtwork(
+    seed,
+    previousObjectID ? [previousObjectID] : [],
+  );
 
   const fresh = {
     ...createDefaultDailyArt(),
@@ -181,6 +193,9 @@ export async function rotateForExtensionLoad(seed, previousObjectID = null) {
 
 export async function ensureDailyArtwork() {
   const art = await ensureDailyArtReset();
+  if (art.artwork?.objectID) {
+    await ensureCurrentArtworkRecorded(art.artwork.objectID);
+  }
   if (art.artwork?.objectID && art.marks?.marks?.length && !marksNeedRegeneration(art)) {
     return art;
   }
@@ -191,8 +206,8 @@ export async function ensureDailyArtwork() {
         let current = await ensureDailyArtReset();
 
         if (!current.artwork?.objectID) {
-          const seed = current.extensionSeed ?? current.selectionSeed ?? current.dateKey;
-          const artwork = await pickDailyArtwork(String(seed));
+          const seed = current.extensionSeed ?? current.selectionSeed ?? `${getTodayKey()}-${Date.now()}`;
+          const artwork = await pickFreshArtwork(seed);
           current = await ensureDailyArtReset();
           if (!current.artwork?.objectID) {
             current = {

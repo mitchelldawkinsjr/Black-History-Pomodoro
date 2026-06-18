@@ -1,6 +1,25 @@
 {
-  "description": "Known Met highlight paintings with public-domain images. Used as a deterministic daily rotation pool.",
+  "description": "Verified open-access paintings across Met departments. Used as a diverse fallback when live search is slow or rate-limited.",
   "objectIDs": [
+    51776,
+    51868,
+    51867,
+    57329,
+    53750,
+    49068,
+    78057,
+    74813,
+    51709,
+    57299,
+    894760,
+    453351,
+    456949,
+    453250,
+    453183,
+    451023,
+    453336,
+    451725,
+    448461,
     436535,
     436528,
     436532,
@@ -16,6 +35,14 @@
     435882,
     436947,
     436105,
-    459081
+    459081,
+    436122,
+    436258,
+    435992,
+    436906,
+    436580,
+    436572,
+    435641,
+    435658
   ]
 }
