@@ -62,12 +62,32 @@ export function isValidPaintingArtwork(object) {
   return isValidOpenAccessArtwork(object) && isPaintingArtwork(object);
 }
 
+function extractPrimaryMeasurements(measurements) {
+  if (!Array.isArray(measurements)) {
+    return null;
+  }
+
+  const overall = measurements.find((entry) => entry.elementName === 'Overall');
+  const height = overall?.elementMeasurements?.Height;
+  const width = overall?.elementMeasurements?.Width;
+
+  if (height == null && width == null) {
+    return null;
+  }
+
+  return { height: height ?? null, width: width ?? null };
+}
+
 export function extractArtworkMetadata(object) {
   return {
     objectID: object.objectID,
     title: object.title ?? '',
     artistDisplayName: object.artistDisplayName ?? '',
     artistDisplayBio: object.artistDisplayBio ?? '',
+    artistNationality: object.artistNationality ?? '',
+    artistBeginDate: object.artistBeginDate ?? null,
+    artistEndDate: object.artistEndDate ?? null,
+    artistRole: object.artistRole ?? '',
     objectDate: object.objectDate ?? '',
     medium: object.medium ?? '',
     culture: object.culture ?? '',
@@ -76,6 +96,11 @@ export function extractArtworkMetadata(object) {
     country: object.country ?? '',
     dimensions: object.dimensions ?? '',
     creditLine: object.creditLine ?? '',
+    accessionYear: object.accessionYear ?? null,
+    accessionNumber: object.accessionNumber ?? '',
+    dynasty: object.dynasty ?? '',
+    reign: object.reign ?? '',
+    portfolio: object.portfolio ?? '',
     primaryImage: object.primaryImage,
     primaryImageSmall: object.primaryImageSmall ?? object.primaryImage,
     objectURL: object.objectURL ?? '',
@@ -86,6 +111,7 @@ export function extractArtworkMetadata(object) {
     galleryNumber: object.GalleryNumber ?? object.galleryNumber ?? '',
     objectBeginDate: object.objectBeginDate ?? null,
     objectEndDate: object.objectEndDate ?? null,
+    measurements: extractPrimaryMeasurements(object.measurements),
     isHighlight: object.isHighlight === true,
     isTimelineWork: object.isTimelineWork === true,
     tags: Array.isArray(object.tags)

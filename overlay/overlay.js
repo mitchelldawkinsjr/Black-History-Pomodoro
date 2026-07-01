@@ -9,6 +9,8 @@ const revealClues = document.getElementById('reveal-clues');
 const revealTimer = document.getElementById('reveal-timer');
 
 let breakEndAt = null;
+let breakTimerPausedAt = null;
+let breakTimerRemainingMs = null;
 let hudInterval = null;
 let hudExpanded = true;
 let breakTimerExpired = false;
@@ -90,8 +92,34 @@ async function startLocalPaintOut() {
   }
 }
 
+function pauseBreakTimer() {
+  if (!breakEndAt || breakTimerPausedAt !== null) {
+    return;
+  }
+
+  breakTimerRemainingMs = Math.max(0, breakEndAt - Date.now());
+  breakTimerPausedAt = Date.now();
+  revealTimer.textContent = formatTime(breakTimerRemainingMs);
+}
+
+function resumeBreakTimer() {
+  if (breakTimerPausedAt === null || breakTimerRemainingMs === null) {
+    return;
+  }
+
+  breakEndAt = Date.now() + breakTimerRemainingMs;
+  breakTimerPausedAt = null;
+  breakTimerRemainingMs = null;
+  updateRevealTimer();
+}
+
 function updateRevealTimer() {
   if (!breakEndAt) {
+    return;
+  }
+
+  if (breakTimerPausedAt !== null && breakTimerRemainingMs !== null) {
+    revealTimer.textContent = formatTime(breakTimerRemainingMs);
     return;
   }
 
@@ -115,7 +143,7 @@ revealHudToggle.addEventListener('click', () => {
   setHudExpanded(!hudExpanded);
 });
 
-function renderRevealClues(unlockedClues, currentBreak) {
+function renderRevealClues(unlockedClues, currentBreak, paintingBreakNumber = currentBreak) {
   revealClues.replaceChildren();
 
   if (!unlockedClues?.length) {
@@ -129,7 +157,7 @@ function renderRevealClues(unlockedClues, currentBreak) {
   for (const clue of unlockedClues) {
     const entry = document.createElement('article');
     entry.className = 'reveal-clue-entry';
-    if (clue.breakNumber === currentBreak) {
+    if (clue.breakNumber === paintingBreakNumber) {
       entry.classList.add('is-new');
     }
 
@@ -164,10 +192,16 @@ function showRevealHud(payload = {}) {
   const breakNumber = reveal.breakNumber ?? payload.breakNumber ?? 1;
 
   revealProgress.textContent = reveal.progressLabel ?? `Break ${breakNumber}`;
-  renderRevealClues(reveal.unlockedClues ?? [], breakNumber);
+  renderRevealClues(
+    reveal.unlockedClues ?? [],
+    breakNumber,
+    reveal.paintingBreakNumber ?? breakNumber,
+  );
   setHudExpanded(true);
 
   breakEndAt = Date.now() + (payload.breakDurationMs ?? 5 * 60 * 1000);
+  breakTimerPausedAt = null;
+  breakTimerRemainingMs = null;
   breakTimerExpired = false;
   updateRevealTimer();
   revealHud.hidden = false;
@@ -184,6 +218,8 @@ function hideRevealHud() {
   revealHud.style.opacity = '1';
   setHudExpanded(true);
   breakEndAt = null;
+  breakTimerPausedAt = null;
+  breakTimerRemainingMs = null;
   breakTimerExpired = false;
   if (hudInterval) {
     clearInterval(hudInterval);
@@ -212,7 +248,7 @@ async function startBreakPaint(payload = {}) {
   showRevealHud(payload);
 
   await api.startPaintIn({
-    breakNumber: payload.breakNumber ?? 1,
+    breakNumber: payload.paintingBreakNumber ?? payload.breakNumber ?? 1,
     previousCanvas: payload.previousCanvas ?? null,
     maxBreaks: payload.maxBreaks ?? 10,
     artwork: payload.artwork ?? null,
@@ -246,9 +282,11 @@ async function handleCommand(command, payload = {}) {
       break;
     case 'PAUSE':
       api.pause();
+      pauseBreakTimer();
       break;
     case 'RESUME':
       api.resume();
+      resumeBreakTimer();
       break;
     case 'RESET':
       hideRevealHud();

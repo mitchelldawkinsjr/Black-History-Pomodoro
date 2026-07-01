@@ -10,6 +10,7 @@ const timerHintEl = document.getElementById('timer-hint');
 const btnPrimary = document.getElementById('btn-primary');
 const btnSecondary = document.getElementById('btn-secondary');
 const btnActivate = document.getElementById('btn-activate');
+const controlsSecondaryEl = document.getElementById('controls-secondary');
 const artworkProgressEl = document.getElementById('artwork-progress');
 const artworkTitleEl = document.getElementById('artwork-title');
 const artworkCluesEl = document.getElementById('artwork-clues');
@@ -53,15 +54,15 @@ function getDisplayRemainingMs(state) {
 }
 
 function renderDailyArt(state) {
-  const daily = state.dailyArt ?? { breakCount: 0, maxBreaks: 10 };
+  const daily = state.dailyArt ?? { breakCount: 0, totalBreakCount: 0, maxBreaks: 10 };
   const display = daily.artworkDisplay ?? {
     headline: daily.artworkReady ? 'Today\'s painting' : 'Loading today\'s painting…',
     latestClue: null,
     titleUnlocked: false,
   };
 
-  const breakCount = daily.breakCount;
-  const currentBreak = state.phase === PHASE.RESTING ? breakCount + 1 : breakCount;
+  const totalBreakCount = daily.totalBreakCount ?? daily.breakCount ?? 0;
+  const currentBreak = state.phase === PHASE.RESTING ? totalBreakCount + 1 : totalBreakCount;
   if (currentBreak > 0) {
     artworkProgressEl.textContent = `Break ${currentBreak}`;
     artworkProgressEl.hidden = false;
@@ -182,6 +183,50 @@ artworkToggleEl.addEventListener('click', () => {
   setArtworkExpanded(!artworkExpanded);
 });
 
+function renderPhaseControls(state, isPaused) {
+  controlsSecondaryEl.hidden = true;
+  btnActivate.hidden = true;
+
+  if (state.phase === PHASE.IDLE) {
+    timerHintEl.textContent = "Start a focus session when you're ready.";
+    btnPrimary.textContent = 'Start focus';
+    btnPrimary.dataset.action = 'start';
+    return;
+  }
+
+  if (state.phase === PHASE.PAINTING_OUT) {
+    timerHintEl.textContent = 'Returning to your screen…';
+    btnPrimary.hidden = true;
+    return;
+  }
+
+  if (isPaused) {
+    timerHintEl.textContent = 'Timer paused.';
+    btnPrimary.textContent = 'Resume';
+    btnPrimary.dataset.action = 'resume';
+  } else if (state.phase === PHASE.FOCUSING) {
+    timerHintEl.textContent = 'Stay focused — paint is waiting.';
+    btnPrimary.textContent = 'Pause';
+    btnPrimary.dataset.action = 'pause';
+  } else if (state.phase === PHASE.RESTING) {
+    timerHintEl.textContent = 'Break — today\'s painting is revealing.';
+    btnPrimary.textContent = 'Pause';
+    btnPrimary.dataset.action = 'pause';
+  }
+
+  if (state.phase === PHASE.FOCUSING) {
+    controlsSecondaryEl.hidden = false;
+    btnActivate.hidden = false;
+    btnActivate.textContent = 'Start break';
+    btnActivate.dataset.action = 'activate';
+  } else if (state.phase === PHASE.RESTING) {
+    controlsSecondaryEl.hidden = false;
+    btnActivate.hidden = false;
+    btnActivate.textContent = 'Skip break';
+    btnActivate.dataset.action = 'skip';
+  }
+}
+
 function render(state) {
   currentState = state;
   const remainingMs = getDisplayRemainingMs(state);
@@ -198,42 +243,11 @@ function render(state) {
 
   btnSecondary.hidden = state.phase === PHASE.IDLE;
 
-  if (state.phase === PHASE.IDLE) {
-    timerHintEl.textContent = "Start a focus session when you're ready.";
-    btnPrimary.textContent = 'Start focus';
-    btnPrimary.dataset.action = 'start';
-    return;
-  }
-
-  if (isPaused) {
-    timerHintEl.textContent = 'Timer paused.';
-    btnPrimary.textContent = 'Resume';
-    btnPrimary.dataset.action = 'resume';
-    return;
-  }
-
-  if (state.phase === PHASE.FOCUSING) {
-    timerHintEl.textContent = 'Stay focused — paint is waiting.';
-    btnPrimary.textContent = 'Pause';
-    btnPrimary.dataset.action = 'pause';
-    return;
-  }
-
-  if (state.phase === PHASE.RESTING) {
-    timerHintEl.textContent = 'Break — today\'s painting is revealing.';
-    btnPrimary.textContent = 'Skip break';
-    btnPrimary.dataset.action = 'skip';
-    return;
-  }
-
   if (state.phase === PHASE.PAINTING_OUT) {
     timerEl.textContent = '…';
-    timerHintEl.textContent = 'Returning to your screen…';
-    btnPrimary.hidden = true;
-    return;
   }
 
-  btnPrimary.hidden = false;
+  renderPhaseControls(state, isPaused);
 }
 
 async function sendMessage(type, payload = {}) {
@@ -283,6 +297,12 @@ btnSecondary.addEventListener('click', async () => {
 });
 
 btnActivate.addEventListener('click', async () => {
+  const action = btnActivate.dataset.action;
+  if (action === 'skip') {
+    await sendMessage(MESSAGE.SKIP_BREAK);
+    return;
+  }
+
   const response = await sendMessage(MESSAGE.ACTIVATE);
   if (response?.error) {
     timerHintEl.textContent = response.error;

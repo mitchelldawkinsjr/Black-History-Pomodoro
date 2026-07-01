@@ -24,6 +24,7 @@ export function createDefaultDailyArt() {
   return {
     dateKey: getTodayKey(),
     breakCount: 0,
+    totalBreakCount: 0,
     canvasDataUrl: null,
     canvasArtworkId: null,
     artwork: null,
@@ -46,10 +47,25 @@ export async function saveDailyArt(art) {
 
 export function ensureDailyArtCurrent(art) {
   const today = getTodayKey();
+  const totalBreakCount = art.totalBreakCount ?? art.breakCount ?? 0;
   if (art.dateKey !== today) {
-    return createDefaultDailyArt();
+    return {
+      ...createDefaultDailyArt(),
+      totalBreakCount,
+    };
+  }
+  if (art.totalBreakCount == null) {
+    return { ...art, totalBreakCount };
   }
   return art;
+}
+
+/** Maps a lifetime break number to the 1–10 cycle for the current painting. */
+export function getPaintingBreakNumber(breakNumber, maxBreaks = MAX_DAILY_BREAKS) {
+  if (breakNumber < 1) {
+    return 1;
+  }
+  return ((breakNumber - 1) % maxBreaks) + 1;
 }
 
 export async function ensureDailyArtReset() {
@@ -156,6 +172,7 @@ export async function rotateToNextPainting() {
     artwork,
     selectionSeed: String(seed),
     extensionSeed: previous.extensionSeed ?? String(seed),
+    totalBreakCount: previous.totalBreakCount ?? previous.breakCount ?? 0,
     breakCount: 0,
     canvasDataUrl: null,
     canvasArtworkId: null,
@@ -175,12 +192,15 @@ export async function rotateForExtensionLoad(seed, previousObjectID = null) {
     previousObjectID ? [previousObjectID] : [],
   );
 
+  const previous = await loadDailyArt();
+
   const fresh = {
     ...createDefaultDailyArt(),
     dateKey: getTodayKey(),
     artwork,
     selectionSeed: String(seed),
     extensionSeed: String(seed),
+    totalBreakCount: previous.totalBreakCount ?? previous.breakCount ?? 0,
     breakCount: 0,
     canvasDataUrl: null,
     canvasArtworkId: null,
@@ -243,12 +263,13 @@ export async function clearDailyCanvas() {
   return cleared;
 }
 
-export async function saveDailyCanvas(dataUrl, breakCount) {
+export async function saveDailyCanvas(dataUrl, breakNumber) {
   const art = await ensureDailyArtReset();
   const updated = {
     ...art,
     dateKey: getTodayKey(),
-    breakCount,
+    totalBreakCount: breakNumber,
+    breakCount: getPaintingBreakNumber(breakNumber),
     canvasDataUrl: dataUrl,
     canvasArtworkId: art.artwork?.objectID ?? null,
   };
@@ -264,5 +285,6 @@ export function getCanvasForBreak(art) {
 }
 
 export function getNextBreakNumber(art) {
-  return Math.min(art.breakCount + 1, MAX_DAILY_BREAKS);
+  const totalBreakCount = art.totalBreakCount ?? art.breakCount ?? 0;
+  return totalBreakCount + 1;
 }

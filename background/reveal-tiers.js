@@ -1,25 +1,45 @@
+import {
+  buildArtistProfile,
+  buildCollectionDetail,
+  buildCollectionHighlight,
+  buildCultureContext,
+  buildDateContext,
+  buildDepartmentContext,
+  buildMediumContext,
+  buildScaleContext,
+  buildSubjectNarrative,
+  buildTitleContext,
+  buildWorkStory,
+  formatTagList,
+  getMetCatalogText,
+  getTagTerms,
+  truncateText,
+} from './artwork-copy.js';
+
 const REVEAL_TIERS = [
   {
     breakAt: 1,
-    label: 'Department',
+    label: 'Collection',
     getValue: (artwork) => artwork.department,
-    getDetail: (artwork) => {
-      if (artwork.classification && artwork.classification !== artwork.department) {
-        return artwork.classification;
-      }
-      return '';
-    },
+    getDetail: (artwork) => buildDepartmentContext(artwork),
   },
   {
     breakAt: 2,
     label: 'Medium',
     getValue: (artwork) => artwork.medium,
+    getDetail: (artwork) => buildMediumContext(artwork),
   },
   {
     breakAt: 3,
-    label: 'Culture',
-    getValue: (artwork) => artwork.culture || artwork.country,
-    getDetail: (artwork) => artwork.period || '',
+    label: 'Origins',
+    getValue: (artwork) => (
+      artwork.culture
+      || artwork.country
+      || artwork.period
+      || artwork.artistNationality
+      || artwork.department
+    ),
+    getDetail: (artwork) => buildCultureContext(artwork),
   },
   {
     breakAt: 4,
@@ -31,97 +51,46 @@ const REVEAL_TIERS = [
     breakAt: 5,
     label: 'Artist',
     getValue: (artwork) => artwork.artistDisplayName,
-    getDetail: (artwork) => artwork.artistDisplayBio || '',
+    getDetail: (artwork) => buildArtistProfile(artwork),
   },
   {
     breakAt: 6,
     label: 'Subjects',
     getValue: (artwork) => formatTagList(getTagTerms(artwork)),
+    getDetail: (artwork) => buildSubjectNarrative(artwork),
   },
   {
     breakAt: 7,
     label: 'Title',
     getValue: (artwork) => artwork.title,
+    getDetail: (artwork) => buildTitleContext(artwork),
   },
   {
     breakAt: 8,
-    label: 'Catalog note',
+    label: 'About this work',
     getValue: (artwork) => {
-      const catalog = getMetCatalogText(artwork);
-      if (catalog) {
-        return truncateText(catalog, 110);
-      }
-      return artwork.repository || '';
+      const story = buildWorkStory(artwork);
+      return story ? truncateText(story, 160) : '';
     },
-    getDetail: (artwork) => getMetCatalogText(artwork),
+    getDetail: (artwork) => buildWorkStory(artwork),
   },
   {
     breakAt: 9,
-    label: 'Dimensions',
+    label: 'Scale',
     getValue: (artwork) => artwork.dimensions,
-    getDetail: (artwork) => (
-      artwork.galleryNumber ? `Gallery ${artwork.galleryNumber}` : ''
-    ),
+    getDetail: (artwork) => buildScaleContext(artwork),
   },
   {
     breakAt: 10,
-    label: 'Credit line',
-    getValue: (artwork) => artwork.creditLine,
+    label: 'At The Met',
+    getValue: (artwork) => (
+      buildCollectionHighlight(artwork)
+      || artwork.repository
+      || 'The Metropolitan Museum of Art'
+    ),
+    getDetail: (artwork) => buildCollectionDetail(artwork),
   },
 ];
-
-function stripHtml(text) {
-  return String(text)
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function truncateText(text, maxLength) {
-  const cleaned = stripHtml(text ?? '');
-  if (!cleaned) {
-    return '';
-  }
-  if (cleaned.length <= maxLength) {
-    return cleaned;
-  }
-  return `${cleaned.slice(0, maxLength - 1).trim()}…`;
-}
-
-function getMetCatalogText(artwork) {
-  if (!artwork) {
-    return '';
-  }
-  return stripHtml(artwork.objectDescription || artwork.additionalInformation || '');
-}
-
-function getTagTerms(artwork) {
-  if (!Array.isArray(artwork?.tags)) {
-    return [];
-  }
-  return artwork.tags
-    .map((tag) => (typeof tag === 'string' ? tag : tag?.term))
-    .filter(Boolean);
-}
-
-function formatTagList(tags) {
-  if (!tags?.length) {
-    return '';
-  }
-  return tags.join(', ');
-}
-
-function buildDateContext(artwork) {
-  if (artwork.period) {
-    return artwork.period;
-  }
-
-  if (artwork.department) {
-    return artwork.department;
-  }
-
-  return artwork.classification || '';
-}
 
 function buildClueEntry(artwork, tier) {
   const rawValue = tier.getValue?.(artwork);
@@ -202,14 +171,16 @@ export function getClueForBreak(artwork, breakNumber) {
 }
 
 export function getBreakRevealDisplay(artwork, breakNumber, maxBreaks = 10) {
-  const unlockedClues = getUnlockedCluesForBreak(artwork, breakNumber);
+  const paintingBreakNumber = ((breakNumber - 1) % maxBreaks) + 1;
+  const unlockedClues = getUnlockedCluesForBreak(artwork, paintingBreakNumber);
 
   return {
     breakNumber,
+    paintingBreakNumber,
     maxBreaks,
-    clue: getClueForBreak(artwork, breakNumber),
+    clue: getClueForBreak(artwork, paintingBreakNumber),
     unlockedClues,
-    headline: getArtworkHeadline(artwork, breakNumber),
+    headline: getArtworkHeadline(artwork, paintingBreakNumber),
     progressLabel: `Break ${breakNumber}`,
     attribution: 'Courtesy of The Metropolitan Museum of Art',
   };

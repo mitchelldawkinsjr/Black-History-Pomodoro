@@ -14,6 +14,7 @@ import {
   ensureDailyArtwork,
   getCanvasForBreak,
   getNextBreakNumber,
+  getPaintingBreakNumber,
   getTodayKey,
   loadDailyArt,
   rotateArtworkIfNewSession,
@@ -78,6 +79,7 @@ async function getPublicState() {
     remainingMs: getRemainingMs(state),
     dailyArt: {
       breakCount: dailyArt.breakCount,
+      totalBreakCount: dailyArt.totalBreakCount ?? dailyArt.breakCount ?? 0,
       dateKey: dailyArt.dateKey,
       maxBreaks: MAX_DAILY_BREAKS,
       artworkDisplay: getArtworkDisplay(dailyArt.artwork, dailyArt.breakCount),
@@ -224,6 +226,7 @@ async function beginBreak() {
   }
 
   const breakNumber = getNextBreakNumber(art);
+  const paintingBreakNumber = getPaintingBreakNumber(breakNumber);
   const previousCanvas = getCanvasForBreak(art);
 
   pendingBreakNumber = breakNumber;
@@ -245,10 +248,11 @@ async function beginBreak() {
     type: OVERLAY.COMMAND,
     command: 'START_BREAK',
     breakNumber,
+    paintingBreakNumber,
     previousCanvas,
     maxBreaks: MAX_DAILY_BREAKS,
     artwork: art.artwork,
-    marks: packMarksForBreak(art.marks, breakNumber),
+    marks: packMarksForBreak(art.marks, paintingBreakNumber),
     breakDurationMs,
     paintDurationMs,
     breakReveal,
@@ -494,6 +498,9 @@ async function handleMessage(message) {
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.ACTIVATE: {
+      if (state.phase !== PHASE.FOCUSING) {
+        return { ok: false, error: 'Start break is only available during a focus session.' };
+      }
       const delivered = await beginBreak();
       const publicState = await getPublicState();
       return {

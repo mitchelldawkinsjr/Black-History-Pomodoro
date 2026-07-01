@@ -26,6 +26,8 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let paintInDurationMs = DEFAULT_PAINT_MS;
     let paintInStart = 0;
     let paintOutStart = 0;
+    let pausedAtMs = 0;
+    let totalPausedMs = 0;
     let coverage = 0;
     let finishedPaintIn = false;
     let finishedPaintOut = false;
@@ -39,6 +41,16 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let previousCanvasImage = null;
     let paperFade = 1;
     let overlayOpacity = 1;
+
+    function resetPauseTracking() {
+      pausedAtMs = 0;
+      totalPausedMs = 0;
+    }
+
+    function getModeElapsed() {
+      const anchor = mode === 'paintOut' ? paintOutStart : paintInStart;
+      return p.millis() - anchor - totalPausedMs;
+    }
 
     function getArtworkImageUrl(artwork) {
       return artwork?.primaryImage || artwork?.primaryImageSmall || null;
@@ -361,7 +373,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       }
 
       if (mode === 'paintIn') {
-        const elapsed = p.millis() - paintInStart;
+        const elapsed = getModeElapsed();
 
         updatePaperFade(elapsed);
 
@@ -377,7 +389,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       }
 
       if (mode === 'paintOut') {
-        const elapsed = p.millis() - paintOutStart;
+        const elapsed = getModeElapsed();
         updatePaintOutFade(elapsed);
         drawComposite();
 
@@ -416,6 +428,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       mode = 'paintIn';
       paintInStart = p.millis();
       paintOutStart = 0;
+      resetPauseTracking();
       coverage = 0;
       finishedPaintIn = false;
       finishedPaintOut = false;
@@ -463,6 +476,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       }
       mode = 'paintOut';
       paintOutStart = p.millis();
+      resetPauseTracking();
       finishedPaintOut = false;
       overlayOpacity = 1;
       paperFade = 1;
@@ -471,17 +485,25 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     };
 
     api.pause = () => {
+      if (mode === 'idle' || pausedAtMs) {
+        return;
+      }
+      pausedAtMs = p.millis();
       p.noLoop();
     };
 
     api.resume = () => {
-      if (mode !== 'idle') {
-        p.loop();
+      if (mode === 'idle' || !pausedAtMs) {
+        return;
       }
+      totalPausedMs += p.millis() - pausedAtMs;
+      pausedAtMs = 0;
+      p.loop();
     };
 
     api.reset = () => {
       mode = 'idle';
+      resetPauseTracking();
       fallbackPools = [];
       coverage = 0;
       finishedPaintIn = false;
