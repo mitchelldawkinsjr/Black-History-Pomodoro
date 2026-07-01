@@ -1,89 +1,48 @@
 # Paint Pomodoro
 
-A browser extension Pomodoro timer that covers your screen in watercolor when it's time to rest.
+A browser extension Pomodoro timer that reveals public-domain paintings from The Metropolitan Museum of Art in watercolor when you take a break.
 
-## Status
+## Features
 
-**v0.2.0 — Paint overlay**
+- Focus and break timer with pause, resume, and skip
+- Fullscreen watercolor overlay across browser tabs during breaks
+- Painting clues unlock over multiple breaks; new artwork every 10 breaks
+- Daily task list in the popup
+- Timer persists via `chrome.storage` and `chrome.alarms`
 
-- Natural watercolor p5.js animation (organic splotches + capillary tendrils)
-- Timer wired to paint-in → rest + prompt → paint-out flow
-- Overlay covers all browser tabs during break transitions
+## Install (beta — before Chrome Web Store)
 
-Previous (v0.1.0):
+**Friends & testers:** see **[INSTALL.md](./INSTALL.md)** for download and setup steps.
 
-- Manifest V3 extension scaffold
-- Background service worker with Pomodoro timer (focus / break phases)
-- Popup UI with start, pause, resume, skip, and reset
+## Load locally (development)
+
+1. Open Chrome and go to `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select this folder
+4. Click the Paint Pomodoro toolbar icon to open the popup
+
+## Publish to Chrome Web Store
+
+See **[PUBLISH.md](./PUBLISH.md)** for the full unlisted-release checklist (developer account, privacy policy, store copy, zip upload, and sharing a private install link with friends).
+
+**Privacy policy:** [privacy.html](./privacy.html) (host via GitHub Pages for the store submission)
 
 ## Project structure
 
 ```
 PaintPomodoro/
 ├── manifest.json
-├── background/
-│   ├── service-worker.js   # Timer state machine + alarms
-│   └── state.js            # Shared phase/state helpers
-├── popup/
-│   ├── popup.html          # Extension popup UI
-│   ├── popup.css
-│   └── popup.js
-├── content/
-│   └── inject-overlay.js   # Injects overlay iframe + message bridge
-├── overlay/
-│   ├── overlay.html        # Fullscreen paint host page
-│   ├── overlay.js          # Command bridge + prompt UI
-│   ├── paint-sketch.js     # p5.js watercolor animation
-│   └── overlay.css
-├── lib/
-│   └── p5.min.js
+├── background/          # Service worker, timer, Met API, daily art
+├── popup/               # Extension popup UI
+├── content/             # Overlay injection on web pages
+├── overlay/             # Watercolor reveal (p5.js)
+├── lib/p5.min.js
 ├── data/
-│   └── prompts.json        # Rest-period prompts
-└── assets/icons/           # Extension icons
+├── assets/icons/
+├── privacy.html
+└── PUBLISH.md
 ```
 
-## Load the extension (development)
+## Attribution
 
-1. Open Chrome and go to `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked**
-4. Select this folder (`PaintPomodoro`)
-5. Click the Paint Pomodoro icon in the toolbar to open the popup
-
-## How the timer works
-
-| Phase         | Default | Behavior                                      |
-|---------------|---------|-----------------------------------------------|
-| Idle          | —       | Ready to start                                |
-| Focus         | 25 min  | Counts down                                   |
-| Paint in      | ~25 sec | Watercolor spreads across all tabs            |
-| Rest          | 5 min   | Full paint + rest prompt; break timer runs    |
-| Paint out     | ~25 sec | Paint lifts/fades; screen returns             |
-
-After paint-out completes, the next focus session starts automatically.
-
-The timer persists across popup close and browser restart via `chrome.storage` and `chrome.alarms`.
-
-### Quick test mode
-
-For faster testing, temporarily edit `overlay/paint-sketch.js`:
-
-```js
-const PAINT_IN_MS = 8000;
-const PAINT_OUT_MS = 8000;
-```
-
-And in `background/state.js`:
-
-```js
-focusMinutes: 0.5,
-breakMinutes: 0.5,
-```
-
-Then reload the extension at `chrome://extensions`.
-
-## Next steps
-
-- Task list in popup
-- Settings UI for durations and paint speed
-- Optional sound / notification when paint begins
+Artworks are from [The Met Open Access](https://www.metmuseum.org/about-the-met/policies-and-documents/open-access) collection (public domain). Courtesy of The Metropolitan Museum of Art.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Paint Pomodoro",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "description": "A Pomodoro timer that covers your screen in watercolor when it's time to rest.",
   "icons": {
     "16": "assets/icons/icon16.png",

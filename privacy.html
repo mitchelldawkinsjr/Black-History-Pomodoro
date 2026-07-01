@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paint Pomodoro — Privacy Policy</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1a1a1a;
+        --muted: #555;
+        --bg: #faf9f7;
+        --card: #fff;
+        --accent: #8b4513;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --text: #f2f0ec;
+          --muted: #b8b4ad;
+          --bg: #141312;
+          --card: #1e1c1a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        line-height: 1.65;
+        color: var(--text);
+        background: var(--bg);
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 48px 24px 80px;
+      }
+      h1 {
+        font-size: 2rem;
+        margin: 0 0 8px;
+      }
+      .updated {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-bottom: 32px;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 32px 0 12px;
+        color: var(--accent);
+      }
+      p, li { color: var(--text); }
+      ul { padding-left: 1.25rem; }
+      a { color: var(--accent); }
+      .card {
+        background: var(--card);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Paint Pomodoro Privacy Policy</h1>
+      <p class="updated">Last updated: June 18, 2026</p>
+
+      <p>
+        Paint Pomodoro is a browser extension that runs a Pomodoro timer and displays
+        watercolor overlays of public-domain artworks from The Metropolitan Museum of Art
+        during rest breaks. This policy explains what information the extension handles.
+      </p>
+
+      <h2>Summary</h2>
+      <ul>
+        <li>We do not sell your data.</li>
+        <li>We do not run advertising or analytics in the extension.</li>
+        <li>We do not require an account or collect your name or email through the extension.</li>
+        <li>Timer state, tasks, and painting progress are stored locally in your browser.</li>
+      </ul>
+
+      <h2>Information stored on your device</h2>
+      <p>
+        The extension uses Chrome’s local storage (<code>chrome.storage</code>) to save:
+      </p>
+      <ul>
+        <li>Pomodoro timer state (focus/break phase, remaining time, pause state)</li>
+        <li>Your daily task list</li>
+        <li>Progress on the current painting (break count, canvas snapshot, unlocked clues)</li>
+        <li>IDs of artworks already shown, to avoid repeats</li>
+        <li>Extension settings such as focus and break durations</li>
+      </ul>
+      <p>
+        This data stays on your device unless you uninstall the extension or clear extension
+        storage. We do not receive copies of this data on our servers.
+      </p>
+
+      <h2>Network requests</h2>
+      <p>The extension may connect to:</p>
+      <ul>
+        <li>
+          <strong>The Metropolitan Museum of Art API</strong>
+          (<a href="https://collectionapi.metmuseum.org/">collectionapi.metmuseum.org</a>)
+          — to fetch public-domain artwork metadata
+        </li>
+        <li>
+          <strong>The Met image CDN</strong>
+          (<a href="https://images.metmuseum.org/">images.metmuseum.org</a>)
+          — to load artwork images for the watercolor reveal
+        </li>
+      </ul>
+      <p>
+        These requests are made directly from your browser to The Met. We do not proxy or
+        log that traffic. Please refer to
+        <a href="https://www.metmuseum.org/about-the-met/policies-and-documents/open-access">The Met’s Open Access policy</a>
+        for their terms.
+      </p>
+
+      <h2>Permissions</h2>
+      <p>Paint Pomodoro requests the following browser permissions:</p>
+      <ul>
+        <li><strong>storage</strong> — save timer, tasks, and painting progress locally</li>
+        <li><strong>alarms</strong> — run the timer when the popup is closed</li>
+        <li><strong>tabs</strong> — find an active browser tab to show the break overlay</li>
+        <li><strong>scripting</strong> — inject the overlay when a break starts</li>
+        <li><strong>host access (&lt;all_urls&gt;)</strong> — display the fullscreen break overlay on whichever website you are viewing during a rest break</li>
+      </ul>
+      <p>
+        The extension does not read page content for tracking or advertising. Host access is
+        used only to show and hide the break overlay.
+      </p>
+
+      <h2>Children’s privacy</h2>
+      <p>
+        Paint Pomodoro is not directed at children under 13, and we do not knowingly collect
+        personal information from anyone.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        We may update this policy if the extension changes. The “Last updated” date at the top
+        will reflect the latest version.
+      </p>
+
+      <h2>Contact</h2>
+      <div class="card">
+        <p style="margin: 0;">
+          Questions about this policy? Open an issue on
+          <a href="https://github.com/AirFan003/PaintPomodoro">GitHub</a>
+          or contact the developer through the Chrome Web Store listing.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>
