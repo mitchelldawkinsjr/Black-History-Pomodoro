@@ -22,6 +22,10 @@ function createOverlayBridge() {
   let overlayReady = false;
   let pendingCommands = [];
   let retryInterval = null;
+  /** True after focus/reset tears the painting down. Blocks late commands from bringing it back. */
+  let dismissed = false;
+
+  const REVEAL_COMMANDS = new Set(['START_BREAK', 'PAINT_IN', 'PAINT_OUT']);
 
   function overlayExists() {
     return document.getElementById(OVERLAY_ID) !== null;
@@ -52,6 +56,9 @@ function createOverlayBridge() {
     iframe.addEventListener(
       'load',
       () => {
+        if (!iframe.isConnected || dismissed) {
+          return;
+        }
         iframe.dataset.loaded = 'true';
         overlayReady = false;
         startDeliveryRetry();
@@ -64,10 +71,12 @@ function createOverlayBridge() {
   }
 
   function showOverlay() {
+    dismissed = false;
     const iframe = createOverlayFrame();
-    iframe.style.display = 'block';
-    iframe.style.opacity = '1';
-    iframe.style.pointerEvents = 'all';
+    iframe.style.setProperty('display', 'block', 'important');
+    iframe.style.setProperty('visibility', 'visible', 'important');
+    iframe.style.setProperty('opacity', '1', 'important');
+    iframe.style.setProperty('pointer-events', 'all', 'important');
     iframe.setAttribute('aria-hidden', 'false');
 
     if (iframe.contentWindow) {
@@ -79,17 +88,33 @@ function createOverlayBridge() {
   }
 
   function hideOverlay() {
+    // Drop the iframe entirely so the decoded painting is released, including
+    // when the page forces iframes visible with !important.
+    dismissed = true;
+    overlayReady = false;
+    pendingCommands = [];
+    stopDeliveryRetry();
+
     const iframe = document.getElementById(OVERLAY_ID);
     if (!iframe) {
       return;
     }
-    iframe.style.display = 'none';
-    iframe.style.opacity = '1';
-    iframe.style.pointerEvents = 'none';
+
+    try {
+      iframe.contentWindow?.postMessage(
+        { source: 'black-history-pomodoro', command: 'RESET' },
+        '*',
+      );
+    } catch {
+      // Frame is already detached.
+    }
+
+    iframe.style.setProperty('display', 'none', 'important');
+    iframe.style.setProperty('visibility', 'hidden', 'important');
+    iframe.style.setProperty('opacity', '0', 'important');
+    iframe.style.setProperty('pointer-events', 'none', 'important');
     iframe.setAttribute('aria-hidden', 'true');
-    overlayReady = false;
-    pendingCommands = [];
-    stopDeliveryRetry();
+    iframe.remove();
   }
 
   function forwardToOverlay(command, payload = {}) {
@@ -160,14 +185,21 @@ function createOverlayBridge() {
 
   function deliverOverlayCommand(command, payload = {}) {
     if (command === 'RESET') {
-      createOverlayFrame();
-      forwardToOverlay(command, payload);
       hideOverlay();
       return;
     }
 
-    showOverlay();
-    createOverlayFrame();
+    if (REVEAL_COMMANDS.has(command)) {
+      showOverlay();
+      queueCommand(command, payload);
+      return;
+    }
+
+    // Pause, resume, and checkpoint must not recreate the painting after focus starts.
+    if (dismissed || !overlayExists()) {
+      return;
+    }
+
     queueCommand(command, payload);
   }
 

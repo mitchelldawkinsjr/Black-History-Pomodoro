@@ -1,4 +1,4 @@
-# Black History Pomodoro project API
+# Black History Pomodoro project API + Live Reveal PWA
 FROM node:22-bookworm-slim AS build
 WORKDIR /app/server
 COPY server/package.json server/package-lock.json* ./
@@ -15,6 +15,11 @@ COPY --from=build /app/server/package.json /app/server/package-lock.json* ./serv
 COPY --from=build /app/server/node_modules ./server/node_modules
 COPY --from=build /app/server/dist ./server/dist
 COPY data/reviewed-fallbacks.json ./data/reviewed-fallbacks.json
+COPY web ./web
+COPY overlay ./overlay
+COPY background ./background
+COPY shared ./shared
+COPY lib ./lib
 ENV NODE_ENV=production \
   PORT=8080 \
   PUBLIC_API_ORIGIN=https://blackhistory.360web.cloud \

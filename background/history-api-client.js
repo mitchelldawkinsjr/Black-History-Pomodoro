@@ -1,4 +1,4 @@
-import { API_BASE_URL, SEEN_DISCOVERY_LIMIT } from '../shared/config.js';
+import { resolveApiBaseUrl, SEEN_DISCOVERY_LIMIT } from '../shared/config.js';
 
 const DISCOVERY_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
@@ -63,7 +63,8 @@ export async function fetchNextDiscovery(excludeIds = []) {
   if (bounded.length) {
     params.set('exclude', bounded.join(','));
   }
-  const url = `${API_BASE_URL}/v1/discoveries/next${params.toString() ? `?${params}` : ''}`;
+  const base = resolveApiBaseUrl();
+  const url = `${base}/v1/discoveries/next${params.toString() ? `?${params}` : ''}`;
   const response = await fetch(url);
   if (!response.ok) {
     let detail = '';
@@ -86,7 +87,9 @@ export async function fetchDiscoveryById(id) {
   if (!DISCOVERY_ID_RE.test(String(id ?? ''))) {
     return null;
   }
-  const response = await fetch(`${API_BASE_URL}/v1/discoveries/${encodeURIComponent(id)}`);
+  const response = await fetch(
+    `${resolveApiBaseUrl()}/v1/discoveries/${encodeURIComponent(id)}`,
+  );
   if (response.status === 404) {
     return null;
   }

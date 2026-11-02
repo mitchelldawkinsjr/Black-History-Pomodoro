@@ -241,7 +241,29 @@ async function showOverlayOnAllTabs() {
 }
 
 async function hideOverlayOnAllTabs() {
-  await sendOverlayToTargets({ type: OVERLAY.HIDE });
+  const preferredId = overlayTabId;
+  overlayTabId = null;
+
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (!tab.id || !isBrowsableUrl(tab.url)) {
+        return;
+      }
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: OVERLAY.HIDE });
+      } catch {
+        // No content script on this tab.
+      }
+    }),
+  );
+
+  // If the script was unloaded, inject so a leftover iframe is still removed.
+  const active = await getActiveBrowsableTab();
+  const reinjectIds = new Set([preferredId, active?.id].filter(Boolean));
+  await Promise.all(
+    [...reinjectIds].map((tabId) => sendToTab(tabId, { type: OVERLAY.HIDE })),
+  );
 }
 
 async function sendOverlayCommand(command, payload = {}) {
@@ -388,9 +410,9 @@ async function beginPaintOut() {
 
 async function startFocus() {
   await clearPaintOutWatchdog();
-  overlayTabId = null;
+  // Remove the break painting from every tab before the focus timer starts.
+  // Do not follow with RESET — that command used to recreate the iframe.
   await hideOverlayOnAllTabs();
-  await sendOverlayCommand('RESET');
   await setState({
     ...state,
     phase: PHASE.FOCUSING,
@@ -439,9 +461,7 @@ async function resetTimer() {
   const { tasks, tasksDateKey, settings } = state;
   await clearAlarm();
   await clearPaintOutWatchdog();
-  overlayTabId = null;
   await hideOverlayOnAllTabs();
-  await sendOverlayCommand('RESET');
   await setState({
     ...createDefaultState(),
     tasks,

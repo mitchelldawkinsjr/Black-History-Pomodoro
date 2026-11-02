@@ -39,8 +39,23 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     let breakMarks = [];
     let paintedMarkCount = 0;
     let previousCanvasImage = null;
+    let artworkImage = null;
     let paperFade = 1;
     let overlayOpacity = 1;
+
+    function releaseImages() {
+      artworkImage = null;
+      previousCanvasImage = null;
+      colorAgents.reset();
+      if (wash) {
+        try {
+          wash.remove();
+        } catch {
+          // Graphics buffer already detached.
+        }
+        wash = null;
+      }
+    }
 
     function resetPauseTracking() {
       pausedAtMs = 0;
@@ -407,6 +422,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     };
 
     p.windowResized = () => {
+      if (!wash) {
+        return;
+      }
       p.resizeCanvas(p.windowWidth, p.windowHeight);
       const snapshot = wash.get();
       resetWash(mode === 'paintIn');
@@ -439,7 +457,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       fallbackPools = [];
       paintedMarkCount = 0;
       breakMarks = [];
-      previousCanvasImage = null;
+      releaseImages();
       paperFade = 0;
       overlayOpacity = 1;
       resetWash(true);
@@ -458,6 +476,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
               p.loadImage(
                 url,
                 (img) => {
+                  artworkImage = img;
                   initColorAgents(img);
                   resolve();
                 },
@@ -530,11 +549,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       marksData = null;
       breakMarks = [];
       paintedMarkCount = 0;
-      previousCanvasImage = null;
       paperFade = 1;
       overlayOpacity = 1;
-      colorAgents.reset();
-      resetWash();
+      releaseImages();
       p.clear();
       p.noLoop();
     };

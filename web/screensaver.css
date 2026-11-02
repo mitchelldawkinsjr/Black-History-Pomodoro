@@ -1,0 +1,157 @@
+@import url('/shared/theme.css');
+
+html,
+body.screensaver {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  cursor: none;
+}
+
+body.screensaver.show-chrome,
+body.screensaver.show-chrome * {
+  cursor: auto;
+}
+
+#overlay-root {
+  background: #fff;
+}
+
+.screensaver #reveal-hud .reveal-kicker {
+  letter-spacing: 0.14em;
+}
+
+.boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: clamp(1.5rem, 6vw, 4rem);
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(179, 114, 82, 0.18), transparent 45%),
+    linear-gradient(160deg, #1a110d 0%, #140e0b 55%, #0d0907 100%);
+  transition: opacity 0.7s ease, visibility 0.7s ease;
+}
+
+.boot-screen.is-gone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot-melanin {
+  width: min(220px, 40vw);
+  height: 5px;
+  border-radius: 999px;
+  background: var(--melanin-stripes);
+  margin-bottom: 0.5rem;
+}
+
+.boot-kicker {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.boot-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 8vw, 4.8rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: var(--color-ink);
+}
+
+.boot-copy,
+.boot-status,
+.boot-hint {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--color-ink-secondary);
+  line-height: 1.45;
+}
+
+.boot-status {
+  color: var(--color-accent-strong);
+  min-height: 1.4em;
+}
+
+.boot-hint {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-ink-subtle);
+}
+
+.boot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.boot-btn,
+.chrome-btn {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: var(--color-accent);
+  color: #140e0b;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.2rem;
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+}
+
+.boot-btn:hover,
+.chrome-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.boot-btn-ghost,
+.chrome-btn {
+  background: transparent;
+  color: var(--color-ink);
+}
+
+.boot-btn-ghost:hover,
+.chrome-btn:hover {
+  background: var(--color-accent-fill);
+}
+
+.chrome-bar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  max-width: calc(100vw - 32px);
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.chrome-bar[hidden] {
+  display: none;
+}
+
+body.screensaver:not(.show-chrome) .chrome-bar {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

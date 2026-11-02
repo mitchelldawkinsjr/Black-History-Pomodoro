@@ -2,7 +2,7 @@
 
 A Chrome MV3 Pomodoro timer that reveals sourced Black history facts and rights-checked archival images across ten earned focus sessions.
 
-Production API: [docs/deploy.md](docs/deploy.md) (`https://blackhistory.360web.cloud`). Setup: [docs/SETUP.md](docs/SETUP.md).
+Production API + Live Reveal PWA: [docs/deploy.md](docs/deploy.md) (`https://blackhistory.360web.cloud`). Setup: [docs/SETUP.md](docs/SETUP.md).
 
 Upstream inspiration: [PaintPomodoro](https://github.com/AirFan003/PaintPomodoro).
 
@@ -14,6 +14,15 @@ Upstream inspiration: [PaintPomodoro](https://github.com/AirFan003/PaintPomodoro
 - Daily task list in the popup
 - Melanin-inspired visual branding
 - Timer persists via `chrome.storage` and `chrome.alarms`
+- **Live Reveal PWA** at `https://blackhistory.360web.cloud` — installable fullscreen screensaver that continually paints and uncovers facts (great for a wall display)
+
+## Wall display (PWA)
+
+1. Open [https://blackhistory.360web.cloud](https://blackhistory.360web.cloud) on the screen/device
+2. Install / Add to Home Screen (Chrome: install icon, or **Install on this screen**)
+3. Open the installed app, tap **Enter fullscreen**, and leave it running
+
+It loops discoveries forever: ten watercolor layers per story, then the next one.
 
 ## Install (beta — before Chrome Web Store)
 
@@ -42,13 +51,15 @@ Black-History-Pomodoro/
 ├── content/             # Overlay injection on web pages
 ├── overlay/             # Watercolor reveal (p5.js)
 ├── shared/              # Theme tokens + API config
-├── server/              # Project discovery API
+├── server/              # Project discovery API + static PWA host
+├── web/                 # Live Reveal screensaver PWA
 ├── lib/p5.min.js
 ├── data/
 ├── assets/icons/
 ├── privacy.html
 └── PUBLISH.md
 ```
+
 
 ## Attribution
 

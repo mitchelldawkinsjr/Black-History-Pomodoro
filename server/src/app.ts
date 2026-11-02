@@ -1,5 +1,6 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import type { Config } from './config.js';
@@ -11,6 +12,7 @@ import { ApiError, redactSecret, type ApiErrorCode, type ErrorBody } from './sch
 import { DiscoveryService, loadReviewedFallbacks } from './services/discoveryService.js';
 import { ImageMatcher } from './services/imageMatcher.js';
 import { MediaStore } from './services/mediaStore.js';
+import { listStaticMounts } from './staticRoots.js';
 
 export interface AppDeps {
   config: Config;
@@ -54,9 +56,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   // Plain in-memory store, keyed by client IP (the default key generator).
+  // Only throttle API traffic — the screensaver PWA loads many static modules.
   await app.register(rateLimit, {
     max: config.rateLimitPerMinute,
     timeWindow: '1 minute',
+    allowList: (request) => {
+      const pathOnly = request.url.split('?', 1)[0] ?? '';
+      return pathOnly === '/healthz' || !pathOnly.startsWith('/v1/');
+    },
     errorResponseBuilder: () => new ApiError('RATE_LIMITED', 'Too many requests. Please slow down.'),
   });
 
@@ -97,6 +104,28 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get('/healthz', { config: { rateLimit: false } }, async () => ({ ok: true }));
   registerDiscoveryRoutes(app, service);
   registerMediaRoutes(app, mediaStore);
+
+  // After API routes so /v1/* wins; remaining GETs are the Live Reveal PWA.
+  const staticMounts = listStaticMounts();
+  for (const [index, mount] of staticMounts.entries()) {
+    await app.register(fastifyStatic, {
+      root: mount.root,
+      prefix: mount.prefix,
+      decorateReply: index === 0,
+      index: mount.index ? ['index.html'] : false,
+      cacheControl: true,
+      maxAge: mount.prefix === '/' ? '5m' : '1h',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Service-Worker-Allowed', '/');
+        }
+        if (filePath.endsWith('.webmanifest')) {
+          res.setHeader('Content-Type', 'application/manifest+json');
+        }
+      },
+    });
+  }
 
   return app;
 }

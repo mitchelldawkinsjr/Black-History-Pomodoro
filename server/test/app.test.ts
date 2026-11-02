@@ -60,6 +60,26 @@ test('GET /healthz -> { ok: true }', async () => {
   assert.deepEqual(res.json(), { ok: true });
 });
 
+test('GET / serves the Live Reveal PWA shell', async () => {
+  const { app } = await makeApp();
+  const res = await app.inject('/');
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers['content-type'] ?? '', /text\/html/);
+  assert.match(res.body, /Black History — Live Reveal/);
+  assert.match(res.body, /manifest\.webmanifest/);
+
+  const manifest = await app.inject('/manifest.webmanifest');
+  assert.equal(manifest.statusCode, 200);
+  assert.match(manifest.body, /Black History Live Reveal/);
+
+  const sw = await app.inject('/sw.js');
+  assert.equal(sw.statusCode, 200);
+  assert.match(sw.body, /bhp-screensaver/);
+
+  const paint = await app.inject('/overlay/paint-sketch.js');
+  assert.equal(paint.statusCode, 200);
+});
+
 test('GET /v1/discoveries/next -> schemaVersion 1 discovery; honors exclude', async () => {
   const { app } = await makeApp();
   const res = await app.inject('/v1/discoveries/next');
