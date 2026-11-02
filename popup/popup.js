@@ -114,27 +114,48 @@ function renderDailyDiscovery(state) {
   const metaClues = (display.clues ?? []).filter(
     (clue) => !(clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt'),
   );
-  const factText = display.factText
-    || (factClues.length ? factClues[factClues.length - 1].value : '');
+  const latestFact = factClues.length ? factClues[factClues.length - 1] : null;
+  const factText = display.factText || latestFact?.value || '';
+  const factDetail =
+    latestFact?.detail && latestFact.detail !== factText ? latestFact.detail : '';
 
   if (discoveryFactEl) {
     if (factText) {
       discoveryFactEl.hidden = false;
-      discoveryFactEl.textContent = factText;
+      discoveryFactEl.replaceChildren();
+
+      const body = document.createElement('span');
+      body.className = 'discovery-fact-text';
+      body.textContent = factText;
+      discoveryFactEl.appendChild(body);
+
+      if (factDetail) {
+        const detail = document.createElement('span');
+        detail.className = 'discovery-fact-detail';
+        detail.textContent = factDetail;
+        discoveryFactEl.appendChild(detail);
+      }
+
       discoveryFactEl.classList.toggle('is-complete', Boolean(display.factComplete));
+      discoveryFactEl.classList.toggle('has-detail', Boolean(factDetail));
     } else {
       discoveryFactEl.hidden = true;
-      discoveryFactEl.textContent = '';
-      discoveryFactEl.classList.remove('is-complete');
+      discoveryFactEl.replaceChildren();
+      discoveryFactEl.classList.remove('is-complete', 'has-detail');
     }
   }
 
   discoveryCluesEl.replaceChildren();
   if (metaClues.length) {
     discoveryCluesEl.hidden = false;
-    for (const clue of metaClues) {
+    const total = metaClues.length;
+    metaClues.forEach((clue, index) => {
       const entry = document.createElement('div');
-      entry.className = 'discovery-clue-entry';
+      const isLatest = index === total - 1;
+      entry.className = `discovery-clue-entry ${isLatest ? 'is-new' : 'is-past'}`;
+      if (!isLatest) {
+        entry.dataset.age = String(Math.min(Math.max(0, total - 1 - index), 3));
+      }
 
       const label = document.createElement('span');
       label.className = 'discovery-clue-label';
@@ -154,7 +175,7 @@ function renderDailyDiscovery(state) {
       }
 
       discoveryCluesEl.appendChild(entry);
-    }
+    });
   } else if (daily.discoveryError && !daily.artworkReady) {
     discoveryCluesEl.hidden = false;
     const hint = document.createElement('p');

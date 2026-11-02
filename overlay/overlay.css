@@ -209,15 +209,40 @@ body {
   background: rgba(41, 25, 17, 0.85);
   border: 1px solid var(--color-border-subtle);
   border-left: 3px solid var(--melanin-4);
+  transition:
+    opacity 0.35s ease,
+    background 0.35s ease,
+    border-color 0.35s ease,
+    transform 0.35s ease;
 }
 
 .reveal-clue-entry:last-child {
   margin-bottom: 0;
 }
 
+.reveal-clue-entry.is-past {
+  opacity: 0.78;
+  background: rgba(32, 20, 14, 0.72);
+  border-left-color: rgba(153, 94, 62, 0.55);
+}
+
+.reveal-clue-entry.is-past[data-age='2'] {
+  opacity: 0.66;
+}
+
+.reveal-clue-entry.is-past[data-age='3'] {
+  opacity: 0.55;
+}
+
+.reveal-clue-entry.is-past .reveal-clue-detail {
+  opacity: 0.85;
+}
+
 .reveal-clue-entry.is-new {
-  border-color: rgba(198, 147, 118, 0.4);
-  background: rgba(95, 57, 38, 0.55);
+  border-color: rgba(198, 147, 118, 0.45);
+  background: rgba(95, 57, 38, 0.58);
+  border-left-color: var(--melanin-2);
+  box-shadow: 0 0 0 1px rgba(198, 147, 118, 0.12);
   animation: reveal-clue-in 0.45s ease-out;
 }
 
@@ -243,6 +268,9 @@ body {
 }
 
 .reveal-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 0 14px;
   padding: 14px 14px 15px;
   border-radius: var(--radius-sm);
@@ -268,6 +296,22 @@ body {
   line-height: 1.6;
 }
 
+.reveal-fact-text {
+  display: block;
+}
+
+.reveal-fact-detail {
+  display: block;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
+}
+
 .reveal-clue-value {
   margin: 0;
   font-family: var(--font-fact);
@@ -285,10 +329,18 @@ body {
 }
 
 .reveal-clue-detail {
-  margin: 6px 0 0;
+  margin: 7px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(218, 183, 164, 0.08);
   font-family: var(--font-sans);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
+}
+
+.reveal-clue-entry.is-new .reveal-clue-detail {
   color: var(--color-ink-secondary);
 }
 

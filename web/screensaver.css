@@ -21,8 +21,52 @@ body.screensaver.show-chrome * {
   background: #fff;
 }
 
+.screensaver #reveal-hud {
+  left: clamp(20px, 3vw, 40px);
+  bottom: clamp(20px, 3vw, 40px);
+  width: min(460px, calc(100vw - 48px));
+  max-height: min(68vh, 640px);
+}
+
 .screensaver #reveal-hud .reveal-kicker {
   letter-spacing: 0.14em;
+}
+
+/* Wall display: progressive details stay readable as more unlocks accumulate. */
+.screensaver .reveal-fact {
+  gap: 10px;
+  font-size: clamp(1.0625rem, 1.5vw, 1.25rem);
+}
+
+.screensaver .reveal-fact.is-complete {
+  font-size: clamp(1.125rem, 1.7vw, 1.35rem);
+}
+
+.screensaver .reveal-fact-detail,
+.screensaver .reveal-clue-detail {
+  font-size: 0.75rem;
+  letter-spacing: 0.035em;
+  color: var(--color-ink-muted);
+}
+
+.screensaver .reveal-clue-entry.is-new .reveal-clue-detail {
+  color: var(--color-ink-secondary);
+}
+
+.screensaver .reveal-clue-entry.is-past {
+  opacity: 0.72;
+}
+
+.screensaver .reveal-clue-entry.is-past[data-age='2'] {
+  opacity: 0.58;
+}
+
+.screensaver .reveal-clue-entry.is-past[data-age='3'] {
+  opacity: 0.46;
+}
+
+.screensaver .reveal-clue-entry.is-new {
+  border-left-width: 4px;
 }
 
 .boot-screen {

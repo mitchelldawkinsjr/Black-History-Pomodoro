@@ -132,18 +132,51 @@ function waitForPaintOut() {
   });
 }
 
+/** Resolves when the user asks to skip the current layer/discovery (or the run is aborted). */
+function waitForSkipSignal(token) {
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (token !== runToken || skipLayer || skipDiscovery) {
+        resolve('skip');
+        return;
+      }
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
+
+function requestSkipLayer() {
+  skipLayer = true;
+  const api = sketch.getApi();
+  api?.completePaintIn?.();
+  showChromeTemporarily();
+}
+
+function requestSkipDiscovery() {
+  skipDiscovery = true;
+  skipLayer = true;
+  const api = sketch.getApi();
+  api?.completePaintIn?.();
+  showChromeTemporarily();
+}
+
+function isFactClue(clue) {
+  return clue?.kind === 'fact' || clue?.label === 'Fact' || clue?.label === 'Excerpt';
+}
+
+function latestFactClue(unlockedClues = []) {
+  const facts = (unlockedClues ?? []).filter(isFactClue);
+  return facts.length ? facts[facts.length - 1] : null;
+}
+
 function latestFactText(unlockedClues = []) {
-  const facts = unlockedClues.filter(
-    (clue) => clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt',
-  );
-  return facts.length ? facts[facts.length - 1].value : '';
+  return latestFactClue(unlockedClues)?.value ?? '';
 }
 
 function renderRevealClues(unlockedClues, paintingBreakNumber) {
   revealClues.replaceChildren();
-  const metaClues = (unlockedClues ?? []).filter(
-    (clue) => !(clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt'),
-  );
+  const metaClues = (unlockedClues ?? []).filter((clue) => !isFactClue(clue));
 
   if (!metaClues.length && !latestFactText(unlockedClues)) {
     const placeholder = document.createElement('p');
@@ -153,11 +186,17 @@ function renderRevealClues(unlockedClues, paintingBreakNumber) {
     return;
   }
 
-  for (const clue of metaClues) {
+  const total = metaClues.length;
+  metaClues.forEach((clue, index) => {
     const entry = document.createElement('article');
     entry.className = 'reveal-clue-entry';
-    if (clue.breakNumber === paintingBreakNumber) {
+    const isNew = clue.breakNumber === paintingBreakNumber;
+    if (isNew) {
       entry.classList.add('is-new');
+    } else {
+      entry.classList.add('is-past');
+      const age = Math.max(0, total - 1 - index);
+      entry.dataset.age = String(Math.min(age, 3));
     }
 
     const label = document.createElement('h3');
@@ -177,7 +216,7 @@ function renderRevealClues(unlockedClues, paintingBreakNumber) {
     }
 
     revealClues.appendChild(entry);
-  }
+  });
 }
 
 function showRevealHud(reveal) {
@@ -190,16 +229,38 @@ function showRevealHud(reveal) {
   revealSubtitle.textContent =
     paintingBreakNumber >= MAX_DISCOVERY_BREAKS
       ? 'Full Black history fact revealed'
-      : 'Facts uncover slowly — sit back and watch';
+      : paintingBreakNumber >= 8
+        ? 'The fact is coming into view'
+        : paintingBreakNumber >= 5
+          ? 'More of the story is taking shape'
+          : paintingBreakNumber >= 2
+            ? 'Details unlock as the painting builds'
+            : 'Facts uncover slowly — sit back and watch';
 
+  const factClue = latestFactClue(unlocked);
   if (factText) {
     revealFact.hidden = false;
-    revealFact.textContent = factText;
+    revealFact.replaceChildren();
+
+    const body = document.createElement('span');
+    body.className = 'reveal-fact-text';
+    body.textContent = factText;
+    revealFact.appendChild(body);
+
+    const factDetail = factClue?.detail && factClue.detail !== factText ? factClue.detail : '';
+    if (factDetail) {
+      const detail = document.createElement('span');
+      detail.className = 'reveal-fact-detail';
+      detail.textContent = factDetail;
+      revealFact.appendChild(detail);
+    }
+
     revealFact.classList.toggle('is-complete', paintingBreakNumber >= MAX_DISCOVERY_BREAKS);
+    revealFact.classList.toggle('has-detail', Boolean(factDetail));
   } else {
     revealFact.hidden = true;
-    revealFact.textContent = '';
-    revealFact.classList.remove('is-complete');
+    revealFact.replaceChildren();
+    revealFact.classList.remove('is-complete', 'has-detail');
   }
 
   if (reveal.attribution) {
@@ -311,12 +372,11 @@ btnPause.addEventListener('click', async () => {
 });
 
 btnSkip.addEventListener('click', () => {
-  skipLayer = true;
+  requestSkipLayer();
 });
 
 btnNext.addEventListener('click', () => {
-  skipDiscovery = true;
-  skipLayer = true;
+  requestSkipDiscovery();
 });
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -351,11 +411,12 @@ document.addEventListener('keydown', (event) => {
     btnPause.click();
   }
   if (event.key === 'ArrowRight') {
-    skipLayer = true;
+    requestSkipLayer();
+    return;
   }
   if (event.key === 'n' || event.key === 'N') {
-    skipDiscovery = true;
-    skipLayer = true;
+    requestSkipDiscovery();
+    return;
   }
   showChromeTemporarily();
 });
@@ -383,19 +444,53 @@ async function runLayer(api, {
     paintDurationMs: PAINT_MS,
   });
 
-  const dataUrl = await paintDone;
+  // If skip was pressed while assets were loading, finish the layer immediately.
+  let dataUrl;
+  if (token !== runToken || skipLayer || skipDiscovery) {
+    dataUrl = api.completePaintIn?.() ?? null;
+    if (paintInResolver) {
+      const resolve = paintInResolver;
+      paintInResolver = null;
+      resolve(dataUrl);
+    }
+  } else {
+    const raced = await Promise.race([
+      paintDone.then((value) => ({ kind: 'done', value })),
+      waitForSkipSignal(token).then(() => ({ kind: 'skip' })),
+    ]);
+    if (raced.kind === 'skip') {
+      dataUrl = api.completePaintIn?.() ?? null;
+      if (paintInResolver) {
+        const resolve = paintInResolver;
+        paintInResolver = null;
+        resolve(dataUrl);
+      }
+    } else {
+      dataUrl = raced.value;
+    }
+  }
+
   if (token !== runToken) {
     return { canvas: dataUrl, aborted: true };
   }
 
-  const holdMs = tier >= maxBreaks ? FULL_REVEAL_HOLD_MS : HOLD_MS;
-  setPhaseTimer('hold', holdMs);
-  const holdResult = await sleep(holdMs, token);
-  clearPhaseTimer(tier >= maxBreaks ? 'DONE' : 'LIVE');
+  // Hold only if the user hasn't already asked to advance.
+  if (!(skipLayer || skipDiscovery)) {
+    const holdMs = tier >= maxBreaks ? FULL_REVEAL_HOLD_MS : HOLD_MS;
+    setPhaseTimer('hold', holdMs);
+    const holdResult = await sleep(holdMs, token);
+    clearPhaseTimer(tier >= maxBreaks ? 'DONE' : 'LIVE');
+    return {
+      canvas: dataUrl || api.checkpointProgress?.() || previousCanvas,
+      aborted: holdResult === 'aborted',
+      skippedDiscovery: skipDiscovery,
+    };
+  }
 
+  clearPhaseTimer(tier >= maxBreaks ? 'DONE' : 'LIVE');
   return {
     canvas: dataUrl || api.checkpointProgress?.() || previousCanvas,
-    aborted: holdResult === 'aborted',
+    aborted: false,
     skippedDiscovery: skipDiscovery,
   };
 }

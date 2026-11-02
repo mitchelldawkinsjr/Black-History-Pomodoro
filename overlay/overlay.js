@@ -184,19 +184,23 @@ revealHudToggle.addEventListener('click', () => {
   setHudExpanded(!hudExpanded);
 });
 
+function isFactClue(clue) {
+  return clue?.kind === 'fact' || clue?.label === 'Fact' || clue?.label === 'Excerpt';
+}
+
+function latestFactClue(unlockedClues = []) {
+  const facts = (unlockedClues ?? []).filter(isFactClue);
+  return facts.length ? facts[facts.length - 1] : null;
+}
+
 function latestFactText(unlockedClues = []) {
-  const facts = unlockedClues.filter(
-    (clue) => clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt',
-  );
-  return facts.length ? facts[facts.length - 1].value : '';
+  return latestFactClue(unlockedClues)?.value ?? '';
 }
 
 function renderRevealClues(unlockedClues, currentBreak, paintingBreakNumber = currentBreak) {
   revealClues.replaceChildren();
 
-  const metaClues = (unlockedClues ?? []).filter(
-    (clue) => !(clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt'),
-  );
+  const metaClues = (unlockedClues ?? []).filter((clue) => !isFactClue(clue));
 
   if (!metaClues.length && !latestFactText(unlockedClues)) {
     const placeholder = document.createElement('p');
@@ -206,11 +210,18 @@ function renderRevealClues(unlockedClues, currentBreak, paintingBreakNumber = cu
     return;
   }
 
-  for (const clue of metaClues) {
+  const total = metaClues.length;
+  metaClues.forEach((clue, index) => {
     const entry = document.createElement('article');
     entry.className = 'reveal-clue-entry';
-    if (clue.breakNumber === paintingBreakNumber) {
+    const isNew = clue.breakNumber === paintingBreakNumber;
+    if (isNew) {
       entry.classList.add('is-new');
+    } else {
+      entry.classList.add('is-past');
+      // Soften earlier cards more as the stack grows.
+      const age = Math.max(0, total - 1 - index);
+      entry.dataset.age = String(Math.min(age, 3));
     }
 
     const label = document.createElement('h3');
@@ -231,7 +242,7 @@ function renderRevealClues(unlockedClues, currentBreak, paintingBreakNumber = cu
     }
 
     revealClues.appendChild(entry);
-  }
+  });
 
   const newest = revealClues.querySelector('.is-new');
   if (newest) {
@@ -257,14 +268,30 @@ function showRevealHud(payload = {}) {
         : 'Black history facts unlock as you earn focus sessions';
   }
   if (revealFact) {
+    const factClue = latestFactClue(unlocked);
     if (factText) {
       revealFact.hidden = false;
-      revealFact.textContent = factText;
+      revealFact.replaceChildren();
+
+      const body = document.createElement('span');
+      body.className = 'reveal-fact-text';
+      body.textContent = factText;
+      revealFact.appendChild(body);
+
+      const factDetail = factClue?.detail && factClue.detail !== factText ? factClue.detail : '';
+      if (factDetail) {
+        const detail = document.createElement('span');
+        detail.className = 'reveal-fact-detail';
+        detail.textContent = factDetail;
+        revealFact.appendChild(detail);
+      }
+
       revealFact.classList.toggle('is-complete', paintingBreakNumber >= 10);
+      revealFact.classList.toggle('has-detail', Boolean(factDetail));
     } else {
       revealFact.hidden = true;
-      revealFact.textContent = '';
-      revealFact.classList.remove('is-complete');
+      revealFact.replaceChildren();
+      revealFact.classList.remove('is-complete', 'has-detail');
     }
   }
   if (revealAttribution && reveal.attribution) {

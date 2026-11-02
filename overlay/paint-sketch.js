@@ -508,6 +508,20 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     };
 
     /**
+     * Finish this break's paint layer immediately and notify listeners
+     * (used by wall-display "Next layer" to skip the remaining paint-in).
+     */
+    api.completePaintIn = () => {
+      if (mode === 'paintIn' && !finishedPaintIn) {
+        return finishPaintIn({ notify: true });
+      }
+      if (mode === 'resting') {
+        return exportWash();
+      }
+      return null;
+    };
+
+    /**
      * Finish this break's paint layer (if still painting) and return a cumulative
      * canvas snapshot so the next break can continue the progression.
      */

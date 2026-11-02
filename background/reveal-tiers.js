@@ -127,16 +127,16 @@ function buildImageClue(discovery) {
   }
 
   const detailParts = [];
-  if (credit && credit !== title && credit !== value) {
-    detailParts.push(credit);
-  } else if (creator) {
+  if (creator && creator !== title) {
     detailParts.push(creator);
   }
-  if (license && !detailParts.some((part) => part.toLowerCase().includes(license.toLowerCase()))) {
+  if (license) {
     detailParts.push(license);
+  } else if (credit && credit !== title && credit !== value) {
+    detailParts.push(credit);
   }
   if (!depictsSubject) {
-    detailParts.push('Generic visual — subject image not verified');
+    detailParts.push('Subject not verified');
   }
 
   return {
@@ -170,25 +170,64 @@ export function deriveRevealCards(discovery, earnedBreaks) {
     }
   };
 
-  push(1, 'Discovery', 'A story from Black history', tags[0] || '');
+  // Early tease only until a concrete theme (or later meta) takes its place.
+  if (earnedBreaks < 2 || !tags[0]) {
+    push(
+      1,
+      'Discovery',
+      'A story from Black history',
+      tags[0] ? `Opening theme: ${tags[0]}` : 'More detail unlocks with each focus session',
+    );
+  }
+
   if (tags[0]) {
-    push(2, 'Theme', tags[0], tags[1] || '');
+    const themeDetail =
+      tags.length > 1
+        ? tags.slice(1, 3).join(' · ')
+        : earnedBreaks >= 5
+          ? 'Tied to today’s discovery'
+          : '';
+    push(2, 'Theme', tags[0], themeDetail);
   } else if (tags[1]) {
     push(2, 'Theme', tags[1]);
   }
+
   if (eventDate) {
-    push(3, 'When', eventDate);
+    push(3, 'When', eventDate, tags[0] && earnedBreaks < 7 ? `During a chapter of ${tags[0]}` : '');
   }
+
   // Geography/institution only when explicitly present in source metadata — omit otherwise.
   if (people[0]) {
-    push(7, 'People', people.join(', '));
+    const peopleDetail =
+      people.length > 1
+        ? `${people.length} people named in this discovery`
+        : eventDate
+          ? `Named in the ${eventDate} account`
+          : '';
+    push(7, 'People', people.join(', '), peopleDetail);
   }
+
   if (factText) {
     push(5, 'Excerpt', shortExcerpt(factText, 12), '');
-    push(6, 'Excerpt', shortExcerpt(factText, 20), tags[1] || tags[0] || '');
-    push(8, 'Fact', excerptAtWords(factText, 0.4));
-    push(9, 'Fact', excerptAtWords(factText, 0.75));
-    push(10, 'Fact', factText, sourceLabel ? `Fact source: ${sourceLabel}` : '');
+    push(
+      6,
+      'Excerpt',
+      shortExcerpt(factText, 20),
+      tags[0] ? `Theme · ${tags[0]}` : '',
+    );
+    push(8, 'Fact', excerptAtWords(factText, 0.4), tags[0] ? `Theme · ${tags[0]}` : '');
+    push(
+      9,
+      'Fact',
+      excerptAtWords(factText, 0.75),
+      people[0] ? `Featuring · ${people[0]}` : tags[0] ? `Theme · ${tags[0]}` : '',
+    );
+    push(
+      10,
+      'Fact',
+      factText,
+      sourceLabel ? `Source · ${sourceLabel}` : '',
+    );
   }
 
   if (earnedBreaks >= 10) {
