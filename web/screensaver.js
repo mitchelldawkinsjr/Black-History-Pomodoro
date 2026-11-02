@@ -400,36 +400,62 @@ async function runLayer(api, {
   };
 }
 
+async function fetchDiscoveryWithTimeout(excludeIds, ms = 15000) {
+  let timer;
+  try {
+    return await Promise.race([
+      fetchNextDiscovery(excludeIds),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Discovery request timed out')), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function runDiscovery(api, token) {
   setBootStatus('Fetching the next discovery…');
-  const seen = loadSeenIds();
+  let seen = loadSeenIds();
   let discovery;
   try {
-    discovery = await fetchNextDiscovery(seen);
+    discovery = await fetchDiscoveryWithTimeout(seen);
   } catch (error) {
-    setBootStatus(error?.message || 'Could not load a discovery. Retrying…');
+    const message = error?.message || 'Could not load a discovery. Retrying…';
+    setBootStatus(message);
+    // If we've excluded too much, clear history and try a fresh pool.
+    if (/NO_ELIGIBLE|404|timed out|RATE_LIMITED|429/i.test(message) && seen.length) {
+      saveSeenIds([]);
+      seen = [];
+    }
     await sleep(5000, token);
     return;
   }
 
   rememberSeen(discovery.id);
   const artwork = toPaintArtwork(discovery);
-  setBootStatus(`Preparing watercolor for ${discovery.people?.[0] || discovery.tags?.[0] || 'a new story'}…`);
+  const label = discovery.people?.[0] || discovery.tags?.[0] || 'a new story';
+  setBootStatus(`Preparing watercolor for ${label}…`);
+  dismissBoot();
+  skipDiscovery = false;
 
-  let marks;
+  let marks = null;
   try {
-    marks = await generateMarksFromImageUrl(
-      discovery.visual.imageUrl,
-      discovery.id,
-      MAX_DISCOVERY_BREAKS,
-    );
+    marks = await Promise.race([
+      generateMarksFromImageUrl(
+        discovery.visual.imageUrl,
+        discovery.id,
+        MAX_DISCOVERY_BREAKS,
+      ),
+      sleep(20000, token).then(() => {
+        throw new Error('Timed out preparing watercolor marks');
+      }),
+    ]);
   } catch (error) {
     console.warn('[screensaver] mark generation failed', error);
     marks = null;
   }
 
-  dismissBoot();
-  skipDiscovery = false;
   let canvas = null;
 
   for (let tier = 1; tier <= MAX_DISCOVERY_BREAKS; tier += 1) {

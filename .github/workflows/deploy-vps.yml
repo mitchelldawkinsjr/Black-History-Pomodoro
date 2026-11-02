@@ -104,7 +104,7 @@ jobs:
             "BLACK_HISTORY_API_KEY=${BLACK_HISTORY_API_KEY}" \
             "BLACK_HISTORY_BASE_URL=https://rest.blackhistoryapi.io/v2" \
             "PUBLIC_API_ORIGIN=https://blackhistory.360web.cloud" \
-            "RATE_LIMIT_PER_MINUTE=30" \
+            "RATE_LIMIT_PER_MINUTE=120" \
             "PORT=8080" \
             "MEDIA_CACHE_DIR=/data/cache/media" \
             "FALLBACKS_PATH=/app/data/reviewed-fallbacks.json" \
