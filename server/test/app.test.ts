@@ -46,7 +46,7 @@ test('config defaults match the spec', () => {
   const c = loadConfig({});
   assert.equal(c.baseUrl, 'https://rest.blackhistoryapi.io/v2');
   assert.equal(c.cacheTtlSeconds, 604800);
-  assert.equal(c.imageMatchAttempts, 8);
+  assert.equal(c.imageMatchAttempts, 16);
   assert.equal(c.rateLimitPerMinute, 30);
   assert.equal(c.port, 8080);
   assert.equal(c.apiKey, undefined);

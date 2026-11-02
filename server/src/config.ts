@@ -12,7 +12,7 @@ const EnvSchema = z.object({
   BLACK_HISTORY_FACT_PATH: z.string().default('/fact/random'),
   PUBLIC_API_ORIGIN: z.string().url().optional(),
   DISCOVERY_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
-  IMAGE_MATCH_ATTEMPTS: z.coerce.number().int().positive().max(50).default(8),
+  IMAGE_MATCH_ATTEMPTS: z.coerce.number().int().positive().max(50).default(16),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
   PORT: z.coerce.number().int().min(0).max(65535).default(8080),
   REVIEWED_FALLBACKS_PATH: z.string().optional(),

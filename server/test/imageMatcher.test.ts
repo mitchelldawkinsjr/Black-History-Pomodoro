@@ -71,8 +71,48 @@ test('evaluateCandidate rejects wrong name, group photos, wrong mime and tiny im
   assert.equal(evaluateCandidate(commonsImage({ title: 'File:Test Person and Other Person.jpg' }), 'Test Person').reason, 'ambiguous-title');
   assert.equal(evaluateCandidate(commonsImage({ mime: 'image/tiff' }), 'Test Person').reason, 'mime');
   assert.equal(evaluateCandidate(commonsImage({ width: 80 }), 'Test Person').reason, 'too-small');
-  // Name present only in the description is accepted; diacritics/case are normalised.
-  assert.equal(evaluateCandidate(commonsImage({ title: 'File:IMG_001.jpg', description: 'Portrait of TEST PERSON' }), 'Test Person').ok, true);
+  // Description alone is not enough when the filename does not lead with the subject/surname.
+  assert.equal(
+    evaluateCandidate(commonsImage({ title: 'File:IMG_001.jpg', description: 'Portrait of TEST PERSON' }), 'Test Person').ok,
+    false,
+  );
+});
+
+test('evaluateCandidate accepts middle-initial subjects and rejects buried/wrong-person titles', () => {
+  assert.equal(
+    evaluateCandidate(
+      commonsImage({
+        title: 'File:Butler signing portrait.jpg',
+        description: 'Cropped photo of Octavia Butler signing.',
+      }),
+      'Octavia E. Butler',
+    ).ok,
+    true,
+  );
+  assert.equal(
+    evaluateCandidate(
+      commonsImage({ title: 'File:Perseverance route to delta presented in July 2021.png', description: 'Mars map' }),
+      'Octavia E. Butler',
+    ).ok,
+    false,
+  );
+  assert.equal(
+    evaluateCandidate(
+      commonsImage({ title: 'File:Caroline Fanny Williams Mapledurham, Berkshire.jpg', description: 'Portrait' }),
+      'Fanny Williams',
+    ).ok,
+    false,
+  );
+  assert.equal(
+    evaluateCandidate(
+      commonsImage({
+        title: 'File:Prince Hezekiah Performed at Burna Boy Home Coming Concert.jpg',
+        description: 'Concert photo',
+      }),
+      'Burna Boy',
+    ).ok,
+    false,
+  );
 });
 
 test('matcher returns a depictsSubject:true image with attribution for a clear match', async () => {
