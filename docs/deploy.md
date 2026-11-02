@@ -10,15 +10,25 @@ Proxy forwards to http://black-history-pomodoro-app:8080 on Docker network `360w
 
 After `up`: none.
 
-Persistent media cache lives in the Docker volume `media-cache` mounted at `/data/cache/media`. rsync excludes `.env` and `node_modules`; the VPS `.env` is created once and kept across deploys.
+Persistent media cache lives in the Docker volume `media-cache` mounted at `/data/cache/media`. rsync excludes `.env` and `node_modules`.
 
-Secrets (GitHub Actions): `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Optional: `VPS_SSH_PORT`, `SLACK_WEBHOOK`.
+## Secrets (GitHub Actions)
 
-Optional VPS `/opt/360ws/clients/docker-app/black-history-pomodoro/.env`:
+Required:
 
-```dotenv
-BLACK_HISTORY_API_KEY=
-BLACK_HISTORY_BASE_URL=https://rest.blackhistoryapi.io/v2
-PUBLIC_API_ORIGIN=https://blackhistory.360web.cloud
-RATE_LIMIT_PER_MINUTE=30
+| Secret | Purpose |
+| --- | --- |
+| `VPS_HOST` | Public VPS address for deploy SSH |
+| `VPS_USER` | SSH user |
+| `VPS_SSH_KEY` | Deploy private key |
+| `BLACK_HISTORY_API_KEY` | Server-side Black History API key; written to VPS `.env` on each deploy |
+
+Optional: `VPS_SSH_PORT`, `SLACK_WEBHOOK`.
+
+Set or rotate the history API key:
+
+```bash
+gh secret set BLACK_HISTORY_API_KEY --repo mitchelldawkinsjr/Black-History-Pomodoro
 ```
+
+The deploy job writes `/opt/360ws/clients/docker-app/black-history-pomodoro/.env` from these secrets (mode `600`). Do not commit `.env`. Without `BLACK_HISTORY_API_KEY`, the workflow fails before rebuild.

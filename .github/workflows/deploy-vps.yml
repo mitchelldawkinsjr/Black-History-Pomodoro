@@ -1,5 +1,6 @@
 # Deploy to mitch-cloud. Push to main syncs this repo to the VPS and rebuilds the container.
-# Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY. Optional: VPS_SSH_PORT, SLACK_WEBHOOK.
+# Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY, BLACK_HISTORY_API_KEY.
+# Optional: VPS_SSH_PORT, SLACK_WEBHOOK.
 name: Deploy to mitch-cloud
 
 on:
@@ -63,6 +64,7 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          BLACK_HISTORY_API_KEY: ${{ secrets.BLACK_HISTORY_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -73,6 +75,11 @@ jobs:
 
           if [ -z "${VPS_USER}" ]; then
             echo "::error::Missing required secret VPS_USER."
+            exit 1
+          fi
+
+          if [ -z "${BLACK_HISTORY_API_KEY}" ]; then
+            echo "::error::Missing required secret BLACK_HISTORY_API_KEY."
             exit 1
           fi
 
@@ -90,6 +97,21 @@ jobs:
             --exclude 'server/node_modules' \
             --exclude 'server/dist' \
             ./ "${VPS_USER}@${VPS_HOST}:/opt/360ws/clients/docker-app/black-history-pomodoro/"
+
+          # Write runtime .env from GitHub Actions secrets (never commit this file).
+          # Base64 avoids shell-metacharacter issues in API keys.
+          ENV_B64=$(printf '%s\n' \
+            "BLACK_HISTORY_API_KEY=${BLACK_HISTORY_API_KEY}" \
+            "BLACK_HISTORY_BASE_URL=https://rest.blackhistoryapi.io/v2" \
+            "PUBLIC_API_ORIGIN=https://blackhistory.360web.cloud" \
+            "RATE_LIMIT_PER_MINUTE=30" \
+            "PORT=8080" \
+            "MEDIA_CACHE_DIR=/data/cache/media" \
+            "FALLBACKS_PATH=/app/data/reviewed-fallbacks.json" \
+            | base64 | tr -d '\n')
+
+          ssh -p "${VPS_SSH_PORT}" "${VPS_USER}@${VPS_HOST}" \
+            "printf '%s' '${ENV_B64}' | base64 -d > /opt/360ws/clients/docker-app/black-history-pomodoro/.env && chmod 600 /opt/360ws/clients/docker-app/black-history-pomodoro/.env"
 
           ssh -p "${VPS_SSH_PORT}" "${VPS_USER}@${VPS_HOST}" << 'EOF'
             set -e

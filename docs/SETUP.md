@@ -37,10 +37,15 @@ Deploy details: [deploy.md](deploy.md).
 ### Secrets (server only)
 
 1. Create a key at https://www.blackhistoryapi.io/
-2. On the VPS, write `/opt/360ws/clients/docker-app/black-history-pomodoro/.env` with `BLACK_HISTORY_API_KEY=...`
-3. Never put the key in the extension, README, or git.
+2. Store it as a GitHub Actions secret (never in the extension, README, or git):
 
-Without a key, the API serves curated fallbacks from `data/reviewed-fallbacks.json`.
+```bash
+gh secret set BLACK_HISTORY_API_KEY --repo mitchelldawkinsjr/Black-History-Pomodoro
+```
+
+3. Each deploy writes that value into the VPS `.env` for the container. See [deploy.md](deploy.md).
+
+Without a key, local/dev can still serve curated fallbacks from `data/reviewed-fallbacks.json`. Production deploys require the secret.
 
 ## Extension backend URL
 
