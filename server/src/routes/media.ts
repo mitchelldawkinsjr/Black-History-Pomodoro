@@ -1,29 +1,18 @@
 import type { FastifyInstance } from 'fastify';
-import { ApiError } from '../schemas/discovery.js';
+import { ApiError, AssetIdParamSchema } from '../schemas/discovery.js';
 import type { MediaStore } from '../services/mediaStore.js';
 
-const ASSET_ID_RE = /^[a-zA-Z0-9_-]{3,128}$/;
-
-export async function registerMediaRoutes(
-  app: FastifyInstance,
-  mediaStore: MediaStore,
-): Promise<void> {
-  app.get('/v1/media/:assetId', async (request, reply) => {
-    const { assetId } = request.params as { assetId: string };
-    if (!ASSET_ID_RE.test(assetId)) {
-      return reply.code(404).send({ error: 'NOT_FOUND', message: 'Media not found' });
-    }
-    try {
-      const media = await mediaStore.read(assetId);
-      reply.header('Content-Type', media.contentType);
-      reply.header('Cache-Control', 'public, max-age=86400');
-      return reply.send(media.bytes);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        return reply.code(error.statusCode).send({ error: error.code, message: error.message });
-      }
-      request.log.error(error);
-      return reply.code(503).send({ error: 'UPSTREAM_UNAVAILABLE', message: 'Media unavailable' });
-    }
+export function registerMediaRoutes(app: FastifyInstance, store: MediaStore): void {
+  app.get('/v1/media/:assetId', async (req, reply) => {
+    const { assetId } = AssetIdParamSchema.parse(req.params);
+    const media = await store.get(assetId);
+    if (!media) throw new ApiError('NOT_FOUND', 'Media asset not found.');
+    return reply
+      .header('content-type', media.contentType)
+      .header('content-length', media.data.length)
+      .header('cache-control', 'public, max-age=86400, immutable')
+      .header('x-content-type-options', 'nosniff')
+      .header('cross-origin-resource-policy', 'cross-origin')
+      .send(media.data);
   });
 }

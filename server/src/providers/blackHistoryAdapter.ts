@@ -1,99 +1,152 @@
 import { createHash } from 'node:crypto';
 
-export type NormalizedFact = {
+export interface NormalizedFact {
+  /** Upstream id when present, otherwise a stable hash of the text. */
   providerFactId: string;
   factText: string;
   people: string[];
   tags: string[];
   eventDate: string | null;
-  source: {
-    label: string;
-    url: string | null;
-    providerUrl: string | null;
+  source: { label: string; url: string | null; providerUrl: string | null };
+  /** True when upstream gave no usable source; the label is then only the provider name. */
+  sourceMissing: boolean;
+}
+
+export const UPSTREAM_PROVIDER_LABEL = 'Black History API';
+
+type Rec = Record<string, unknown>;
+
+function isRecord(v: unknown): v is Rec {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function clean(v: unknown): string | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  if (typeof v !== 'string') return null;
+  const s = v
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return s.length ? s : null;
+}
+
+function pick(obj: Rec, keys: string[]): unknown {
+  for (const k of keys) if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+  return undefined;
+}
+
+function isHttpUrl(s: string): boolean {
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function stringList(v: unknown, nameKeys: string[]): string[] {
+  const out: string[] = [];
+  const push = (x: unknown) => {
+    const s = isRecord(x) ? clean(pick(x, nameKeys)) : clean(x);
+    if (s && !out.some((o) => o.toLowerCase() === s.toLowerCase())) out.push(s);
   };
-};
-
-function asString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : null;
+  if (Array.isArray(v)) v.forEach(push);
+  else if (v !== undefined && v !== null) push(v);
+  return out;
 }
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      if (typeof entry === 'string') return entry.trim();
-      if (entry && typeof entry === 'object' && 'name' in entry) {
-        return asString((entry as { name: unknown }).name) ?? '';
-      }
-      return '';
-    })
-    .filter(Boolean);
+type Source = NormalizedFact['source'];
+
+function parseSourceEntry(entry: unknown): Source | null {
+  if (isRecord(entry)) {
+    const url = clean(pick(entry, ['url', 'source_url', 'link', 'href', 'uri']));
+    const label = clean(pick(entry, ['label', 'title', 'name', 'publisher', 'source', 'citation']));
+    const validUrl = url && isHttpUrl(url) ? url : null;
+    if (label) return { label, url: validUrl, providerUrl: null };
+    if (validUrl) return { label: new URL(validUrl).hostname.replace(/^www\./, ''), url: validUrl, providerUrl: null };
+    return null;
+  }
+  const s = clean(entry);
+  if (!s) return null;
+  if (isHttpUrl(s)) return { label: new URL(s).hostname.replace(/^www\./, ''), url: s, providerUrl: null };
+  return { label: s, url: null, providerUrl: null };
 }
 
-function extractSource(raw: Record<string, unknown>): NormalizedFact['source'] {
-  const source = raw.source;
-  if (typeof source === 'string' && source.trim()) {
-    return { label: source.trim(), url: null, providerUrl: null };
+function parseSource(item: Rec): Source | null {
+  // Newer shape: source_references (array); older shape: source (string or object).
+  for (const key of ['source_references', 'sourceReferences', 'source', 'sources']) {
+    const v = item[key];
+    const entries = Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
+    for (const e of entries) {
+      const parsed = parseSourceEntry(e);
+      if (parsed) return parsed;
+    }
   }
-  if (source && typeof source === 'object') {
-    const obj = source as Record<string, unknown>;
-    return {
-      label: asString(obj.label) ?? asString(obj.name) ?? asString(obj.title) ?? 'Black History API',
-      url: asString(obj.url) ?? asString(obj.source_url) ?? null,
-      providerUrl: asString(obj.providerUrl) ?? null,
-    };
-  }
-  const refs = raw.source_references;
-  if (Array.isArray(refs) && refs[0] && typeof refs[0] === 'object') {
-    const first = refs[0] as Record<string, unknown>;
-    return {
-      label: asString(first.source) ?? asString(first.label) ?? 'Black History API',
-      url: asString(first.source_url) ?? asString(first.url) ?? null,
-      providerUrl: null,
-    };
-  }
-  return { label: 'Black History API', url: null, providerUrl: null };
+  return null;
 }
 
-export function normalizeFactRecord(raw: unknown): NormalizedFact | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const record = raw as Record<string, unknown>;
-  const factText =
-    asString(record.text) ?? asString(record.factText) ?? asString(record.fact) ?? null;
+function sanitizeId(raw: unknown): string | null {
+  const s = clean(raw);
+  if (!s) return null;
+  const safe = s.replace(/[^A-Za-z0-9._-]/g, '');
+  return safe.length >= 1 && safe.length <= 100 ? safe : null;
+}
+
+/** Normalizes a single upstream item. Returns null when the item has no usable (non-empty) text. */
+export function normalizeFactRecord(item: unknown): NormalizedFact | null {
+  if (!isRecord(item)) return null;
+  const factText = clean(pick(item, ['text', 'factText', 'fact', 'description', 'summary']));
   if (!factText) return null;
 
   const providerFactId =
-    asString(record._id) ??
-    asString(record.id) ??
-    asString(record.factId) ??
-    createHash('sha256').update(factText).digest('hex').slice(0, 24);
+    sanitizeId(pick(item, ['_id', 'id', 'factId', 'uuid'])) ??
+    `h${createHash('sha256').update(factText).digest('hex').slice(0, 24)}`;
+  const people = stringList(pick(item, ['people', 'related_people', 'person', 'persons']), ['name', 'full_name', 'title']);
+  const tags = stringList(pick(item, ['tags', 'tag', 'categories', 'category']), ['name', 'title', 'label']);
+  const eventDate = clean(pick(item, ['date_of_event', 'eventDate', 'dateOfEvent', 'date', 'event_date']));
+  const parsedSource = parseSource(item);
 
   return {
     providerFactId,
     factText,
-    people: asStringArray(record.people ?? record.related_people),
-    tags: asStringArray(record.tags),
-    eventDate:
-      asString(record.eventDate) ??
-      asString(record.date_of_event) ??
-      asString(record.date) ??
-      null,
-    source: extractSource(record),
+    people,
+    tags,
+    eventDate,
+    source: parsedSource ?? { label: UPSTREAM_PROVIDER_LABEL, url: null, providerUrl: null },
+    sourceMissing: parsedSource === null,
   };
 }
 
-export function extractFactCandidates(payload: unknown): NormalizedFact[] {
-  if (!payload || typeof payload !== 'object') return [];
-  const root = payload as Record<string, unknown>;
-  for (const bucket of [root.Results, root.data, root.results, root.facts]) {
-    if (Array.isArray(bucket)) {
-      return bucket
-        .map((entry) => normalizeFactRecord(entry))
-        .filter((entry): entry is NormalizedFact => entry !== null);
+function extractItems(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (!isRecord(payload)) return [];
+  for (const key of ['Results', 'results', 'data', 'Data', 'facts']) {
+    const v = payload[key];
+    if (Array.isArray(v)) return v;
+    if (isRecord(v)) {
+      // `{ data: { text, ... } }` or nested `{ data: { results: [...] } }`
+      return Array.isArray(v.results) ? v.results : Array.isArray(v.Results) ? v.Results : [v];
     }
   }
-  const single = normalizeFactRecord(payload);
-  return single ? [single] : [];
+  // A bare single fact object.
+  return 'text' in payload ? [payload] : [];
+}
+
+/**
+ * Normalizes a Black History API v2 response. Supports:
+ *  - older:  { Results: [{ _id, text, people, tags, source }] }
+ *  - newer:  { data: [{ text, date_of_event, source_references, ... }] }
+ * Items without non-empty text are dropped. No field is ever invented: missing
+ * people/tags become empty arrays and a missing source is flagged via `sourceMissing`.
+ */
+export function extractFactCandidates(payload: unknown): NormalizedFact[] {
+  const seen = new Set<string>();
+  const out: NormalizedFact[] = [];
+  for (const raw of extractItems(payload)) {
+    const fact = normalizeFactRecord(raw);
+    if (!fact || seen.has(fact.providerFactId)) continue;
+    seen.add(fact.providerFactId);
+    out.push(fact);
+  }
+  return out;
 }

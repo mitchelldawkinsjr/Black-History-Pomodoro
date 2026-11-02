@@ -1,40 +1,59 @@
-import { ApiError } from '../schemas/discovery.js';
-import { extractFactCandidates, type NormalizedFact } from './blackHistoryAdapter.js';
+import { redactSecret } from '../schemas/discovery.js';
 
-export class BlackHistoryClient {
-  private readonly apiKey: string | undefined;
-  private readonly baseUrl: string;
+export class UpstreamError extends Error {
+  readonly upstreamStatus: number | null;
+  constructor(message: string, upstreamStatus: number | null = null) {
+    super(message);
+    this.name = 'UpstreamError';
+    this.upstreamStatus = upstreamStatus;
+  }
+}
+
+export interface BlackHistoryClientOptions {
+  apiKey: string;
+  baseUrl: string;
+  factPath: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+export interface FactSource {
+  fetchRandomFact(): Promise<unknown>;
+}
+
+/** Thin HTTP client for the Black History API v2. The key is only ever sent as a request header. */
+export class BlackHistoryClient implements FactSource {
+  private readonly apiKey: string;
+  private readonly url: string;
+  private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
 
-  constructor(config: { apiKey?: string; baseUrl: string; timeoutMs?: number }) {
-    this.apiKey = config.apiKey?.trim() || undefined;
-    this.baseUrl = config.baseUrl.replace(/\/$/, '');
-    this.timeoutMs = config.timeoutMs ?? 8000;
+  constructor(opts: BlackHistoryClientOptions) {
+    this.apiKey = opts.apiKey;
+    this.url = `${opts.baseUrl.replace(/\/+$/, '')}${opts.factPath}`;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.timeoutMs = opts.timeoutMs ?? 8000;
   }
 
-  get enabled(): boolean {
-    return Boolean(this.apiKey);
-  }
-
-  async fetchRandomFact(): Promise<NormalizedFact[]> {
-    if (!this.apiKey) return [];
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+  async fetchRandomFact(): Promise<unknown> {
+    let res: Response;
     try {
-      const response = await fetch(`${this.baseUrl}/fact/random`, {
-        headers: { 'x-api-key': this.apiKey, Accept: 'application/json' },
-        signal: controller.signal,
+      res = await this.fetchImpl(this.url, {
+        method: 'GET',
+        headers: { 'x-api-key': this.apiKey, accept: 'application/json' },
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
-      if (response.status === 401 || response.status === 403 || response.status === 429 || !response.ok) {
-        throw new ApiError('UPSTREAM_UNAVAILABLE', 'Upstream request failed', 503);
-      }
-      return extractFactCandidates(await response.json());
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError('UPSTREAM_UNAVAILABLE', 'Upstream unavailable', 503);
-    } finally {
-      clearTimeout(timer);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'network error';
+      throw new UpstreamError(`Black History API request failed: ${redactSecret(msg, this.apiKey)}`);
+    }
+    if (!res.ok) {
+      throw new UpstreamError(`Black History API responded with HTTP ${res.status}`, res.status);
+    }
+    try {
+      return await res.json();
+    } catch {
+      throw new UpstreamError('Black History API returned invalid JSON', res.status);
     }
   }
 }
