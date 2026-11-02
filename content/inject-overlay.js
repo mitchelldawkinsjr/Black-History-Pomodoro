@@ -1,18 +1,18 @@
-const OVERLAY_ID = 'paint-pomodoro-overlay';
+const OVERLAY_ID = 'black-history-pomodoro-overlay';
 
-if (!globalThis.__paintPomodoroBridge) {
-  globalThis.__paintPomodoroBridge = createOverlayBridge();
+if (!globalThis.__blackHistoryPomodoroBridge) {
+  globalThis.__blackHistoryPomodoroBridge = createOverlayBridge();
 }
 
-if (!globalThis.__paintPomodoroBridgeListener) {
-  globalThis.__paintPomodoroBridgeListener = true;
+if (!globalThis.__blackHistoryPomodoroBridgeListener) {
+  globalThis.__blackHistoryPomodoroBridgeListener = true;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'PING') {
       sendResponse({ ok: true });
       return false;
     }
-    globalThis.__paintPomodoroBridge.handleMessage(message);
+    globalThis.__blackHistoryPomodoroBridge.handleMessage(message);
     sendResponse({ ok: true });
     return false;
   });
@@ -36,7 +36,7 @@ function createOverlayBridge() {
     iframe.id = OVERLAY_ID;
     iframe.src = chrome.runtime.getURL('overlay/overlay.html');
     iframe.setAttribute('aria-hidden', 'true');
-    iframe.setAttribute('title', 'Paint Pomodoro rest overlay');
+    iframe.setAttribute('title', 'Black History Pomodoro rest overlay');
     iframe.style.cssText = [
       'position: fixed',
       'inset: 0',
@@ -72,7 +72,7 @@ function createOverlayBridge() {
 
     if (iframe.contentWindow) {
       iframe.contentWindow.postMessage(
-        { source: 'paint-pomodoro', command: 'RESIZE' },
+        { source: 'black-history-pomodoro', command: 'RESIZE' },
         '*',
       );
     }
@@ -100,7 +100,7 @@ function createOverlayBridge() {
 
     iframe.contentWindow.postMessage(
       {
-        source: 'paint-pomodoro',
+        source: 'black-history-pomodoro',
         command,
         ...payload,
       },
@@ -172,7 +172,7 @@ function createOverlayBridge() {
   }
 
   window.addEventListener('message', (event) => {
-    if (event.data?.source !== 'paint-pomodoro') {
+    if (event.data?.source !== 'black-history-pomodoro') {
       return;
     }
 
@@ -193,10 +193,9 @@ function createOverlayBridge() {
       const opacity = Math.max(0, Math.min(1, event.data.opacity ?? 1));
       iframe.style.opacity = String(opacity);
       iframe.style.pointerEvents = opacity < 1 ? 'none' : 'all';
-
-      if (opacity <= 0.001) {
-        hideOverlay();
-      }
+      // Do not hide on fade — hiding pauses the iframe rAF loop and can
+      // prevent PAINT_OUT_DONE from ever firing (stuck "Returning…" state).
+      // Overlay is removed via the explicit HIDE event after paint-out completes.
       return;
     }
 

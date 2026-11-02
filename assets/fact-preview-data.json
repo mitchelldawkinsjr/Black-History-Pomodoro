@@ -1,0 +1,109 @@
+{
+  "discovery": {
+    "id": "bhf-fallback-carver-001",
+    "provider": "curated",
+    "providerFactId": "curated-carver-001",
+    "factText": "George Washington Carver worked at the Tuskegee Institute in Alabama for 47 years, where he taught crop rotation and introduced alternative cash crops.",
+    "people": [
+      "George Washington Carver"
+    ],
+    "tags": [
+      "Agriculture",
+      "Education",
+      "Science"
+    ],
+    "eventDate": "1896",
+    "source": {
+      "label": "National Park Service \u2014 George Washington Carver",
+      "url": "https://www.nps.gov/people/george-washington-carver.htm",
+      "providerUrl": null
+    },
+    "visual": {
+      "assetId": "asset-carver-001",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/George_Washington_Carver_c1910.jpg/960px-George_Washington_Carver_c1910.jpg",
+      "title": "George Washington Carver c1910",
+      "alt": "Photograph or portrait of George Washington Carver",
+      "creator": null,
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:George_Washington_Carver_c1910.jpg",
+      "license": "Public domain",
+      "licenseUrl": null,
+      "licenseKind": "public-domain",
+      "credit": "Wikimedia Commons \u2014 public domain",
+      "depictionType": "photo",
+      "depictsSubject": true,
+      "width": 960,
+      "height": 1201,
+      "reviewedAt": "2026-11-02T00:00:00Z"
+    },
+    "generatedAt": "2026-11-02T00:00:00Z",
+    "schemaVersion": 1
+  },
+  "stages": {
+    "1": {
+      "progress": "Discovery 1/10",
+      "headline": "A story from Black history",
+      "subtitle": "Black history facts unlock as you earn focus sessions",
+      "fact": null,
+      "clues": [
+        [
+          "Discovery",
+          "A story from Black history"
+        ],
+        [
+          "Theme",
+          "Agriculture"
+        ]
+      ]
+    },
+    "5": {
+      "progress": "Discovery 5/10",
+      "headline": "Agriculture",
+      "subtitle": "Black history facts unlock as you earn focus sessions",
+      "fact": "George Washington Carver worked at the Tuskegee Institute in Alabama for 47\u2026",
+      "clues": [
+        [
+          "Discovery",
+          "A story from Black history"
+        ],
+        [
+          "Theme",
+          "Agriculture"
+        ]
+      ]
+    },
+    "8": {
+      "progress": "Discovery 8/10",
+      "headline": "George Washington Carver",
+      "subtitle": "Black history facts unlock as you earn focus sessions",
+      "fact": "George Washington Carver worked at the Tuskegee Institute in Alabama\u2026",
+      "clues": [
+        [
+          "Theme",
+          "Agriculture"
+        ],
+        [
+          "People",
+          "George Washington Carver"
+        ]
+      ]
+    },
+    "10": {
+      "progress": "Discovery 10/10",
+      "headline": "George Washington Carver",
+      "subtitle": "Full Black history fact revealed",
+      "fact": "George Washington Carver worked at the Tuskegee Institute in Alabama for 47 years, where he taught crop rotation and introduced alternative cash crops.",
+      "clues": [
+        [
+          "Theme",
+          "Agriculture"
+        ],
+        [
+          "People",
+          "George Washington Carver"
+        ]
+      ],
+      "source": "National Park Service \u2014 George Washington Carver",
+      "image": "Wikimedia Commons \u2014 public domain"
+    }
+  }
+}

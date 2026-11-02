@@ -1,0 +1,69 @@
+/* Black History Pomodoro — melanin skin-tone palette */
+
+:root {
+  /* Melanin spectrum (light → deep) */
+  --melanin-1: #dab7a4;
+  --melanin-2: #c69376;
+  --melanin-3: #b37252;
+  --melanin-4: #995e3e;
+  --melanin-5: #835033;
+  --melanin-6: #5f3926;
+  --melanin-7: #462a1c;
+
+  /* Surfaces — deep melanin grounds */
+  --color-canvas: #140e0b;
+  --color-surface: #1e1410;
+  --color-surface-muted: #291911;
+  --color-surface-raised: #342016;
+
+  /* Ink — pale tan on dark for contrast */
+  --color-ink: #f4e6da;
+  --color-ink-secondary: #e2c7b4;
+  --color-ink-muted: #c69376;
+  --color-ink-subtle: #9a6f57;
+
+  /* Accent — mid melanin (caramel / terracotta) */
+  --color-accent: #b37252;
+  --color-accent-strong: #c69376;
+  --color-accent-hover: #dab7a4;
+  --color-accent-fill: rgba(179, 114, 82, 0.18);
+  --color-warm: #c69376;
+
+  /* Borders & rules */
+  --color-border: rgba(218, 183, 164, 0.16);
+  --color-border-subtle: rgba(218, 183, 164, 0.1);
+  --color-rule: rgba(198, 147, 118, 0.28);
+
+  /*
+   * Typography
+   * - Display: Sora for brand/timer chrome
+   * - UI sans: Figtree for controls/labels
+   * - Facts: Literata — designed for long reading on screens
+   */
+  --font-display: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-sans: 'Figtree', 'Avenir Next', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Literata', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --font-fact: 'Literata', 'Iowan Old Style', Georgia, serif;
+
+  /* Shape — crisp, not bubbly */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+
+  /* Spacing rhythm */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+
+  /* Melanin stripe motif */
+  --melanin-stripes: linear-gradient(
+    90deg,
+    var(--melanin-1) 0 14.285%,
+    var(--melanin-2) 14.285% 28.57%,
+    var(--melanin-3) 28.57% 42.855%,
+    var(--melanin-4) 42.855% 57.14%,
+    var(--melanin-5) 57.14% 71.425%,
+    var(--melanin-6) 71.425% 85.71%,
+    var(--melanin-7) 85.71% 100%
+  );
+}

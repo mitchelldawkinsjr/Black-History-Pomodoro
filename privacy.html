@@ -3,31 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paint Pomodoro — Privacy Policy</title>
+    <title>Black History Pomodoro — Privacy Policy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Sora:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        color-scheme: light dark;
-        --text: #1a1a1a;
-        --muted: #555;
-        --bg: #faf9f7;
-        --card: #fff;
-        --accent: #8b4513;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --text: #f2f0ec;
-          --muted: #b8b4ad;
-          --bg: #141312;
-          --card: #1e1c1a;
-        }
+        --text: #f4e6da;
+        --muted: #c69376;
+        --bg: #140e0b;
+        --card: #1e1410;
+        --accent: #b37252;
+        --stripe: linear-gradient(
+          90deg,
+          #dab7a4 0 14.285%,
+          #c69376 14.285% 28.57%,
+          #b37252 28.57% 42.855%,
+          #995e3e 42.855% 57.14%,
+          #835033 57.14% 71.425%,
+          #5f3926 71.425% 85.71%,
+          #462a1c 85.71% 100%
+        );
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family: Figtree, "Avenir Next", system-ui, sans-serif;
         line-height: 1.65;
         color: var(--text);
-        background: var(--bg);
+        background:
+          radial-gradient(ellipse 100% 60% at 50% -10%, rgba(179, 114, 82, 0.2), transparent 50%),
+          var(--bg);
+      }
+      .melanin-bar {
+        height: 8px;
+        background: var(--stripe);
       }
       main {
         max-width: 720px;
@@ -35,7 +48,10 @@
         padding: 48px 24px 80px;
       }
       h1 {
+        font-family: Sora, Figtree, sans-serif;
         font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
         margin: 0 0 8px;
       }
       .updated {
@@ -44,31 +60,35 @@
         margin-bottom: 32px;
       }
       h2 {
-        font-size: 1.15rem;
+        font-family: Sora, Figtree, sans-serif;
+        font-size: 1.05rem;
+        font-weight: 600;
         margin: 32px 0 12px;
         color: var(--accent);
+        letter-spacing: 0.02em;
       }
       p, li { color: var(--text); }
       ul { padding-left: 1.25rem; }
-      a { color: var(--accent); }
+      a { color: #c69376; }
       .card {
         background: var(--card);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 8px;
+        border: 1px solid rgba(218, 183, 164, 0.14);
+        border-radius: 6px;
         padding: 20px 24px;
         margin-top: 24px;
       }
     </style>
   </head>
   <body>
+    <div class="melanin-bar" aria-hidden="true"></div>
     <main>
-      <h1>Paint Pomodoro Privacy Policy</h1>
-      <p class="updated">Last updated: June 18, 2026</p>
+      <h1>Black History Pomodoro Privacy Policy</h1>
+      <p class="updated">Last updated: November 2, 2026</p>
 
       <p>
-        Paint Pomodoro is a browser extension that runs a Pomodoro timer and displays
-        watercolor overlays of public-domain artworks from The Metropolitan Museum of Art
-        during rest breaks. This policy explains what information the extension handles.
+        Black History Pomodoro is a browser extension that runs a Pomodoro timer and reveals
+        sourced Black history facts with rights-checked archival imagery during rest breaks.
+        This policy explains what information the extension handles.
       </p>
 
       <h2>Summary</h2>
@@ -76,7 +96,7 @@
         <li>We do not sell your data.</li>
         <li>We do not run advertising or analytics in the extension.</li>
         <li>We do not require an account or collect your name or email through the extension.</li>
-        <li>Timer state, tasks, and painting progress are stored locally in your browser.</li>
+        <li>Timer state, tasks, and discovery progress are stored locally in your browser.</li>
       </ul>
 
       <h2>Information stored on your device</h2>
@@ -86,40 +106,38 @@
       <ul>
         <li>Pomodoro timer state (focus/break phase, remaining time, pause state)</li>
         <li>Your daily task list</li>
-        <li>Progress on the current painting (break count, canvas snapshot, unlocked clues)</li>
-        <li>IDs of artworks already shown, to avoid repeats</li>
+        <li>Progress on the current discovery (break count, canvas snapshot, unlocked clues)</li>
+        <li>IDs of discoveries already shown, to avoid repeats</li>
         <li>Extension settings such as focus and break durations</li>
       </ul>
       <p>
         This data stays on your device unless you uninstall the extension or clear extension
-        storage. We do not receive copies of this data on our servers.
+        storage. We do not receive copies of this data on our servers from the extension storage.
       </p>
 
       <h2>Network requests</h2>
       <p>The extension may connect to:</p>
       <ul>
         <li>
-          <strong>The Metropolitan Museum of Art API</strong>
-          (<a href="https://collectionapi.metmuseum.org/">collectionapi.metmuseum.org</a>)
-          — to fetch public-domain artwork metadata
+          <strong>The Black History API</strong>
+          (<a href="https://blackhistory.360web.cloud">blackhistory.360web.cloud</a>)
+          — to fetch sourced historical discoveries and approved media
         </li>
         <li>
-          <strong>The Met image CDN</strong>
-          (<a href="https://images.metmuseum.org/">images.metmuseum.org</a>)
-          — to load artwork images for the watercolor reveal
+          Image hosts referenced by those discoveries (for example Wikimedia Commons or other
+          rights-checked archival CDNs) — to load imagery for the break overlay
         </li>
       </ul>
       <p>
-        These requests are made directly from your browser to The Met. We do not proxy or
-        log that traffic. Please refer to
-        <a href="https://www.metmuseum.org/about-the-met/policies-and-documents/open-access">The Met’s Open Access policy</a>
-        for their terms.
+        Discovery requests go to The Black History API. We do not sell that
+        traffic or use it for advertising. Image requests follow the license and attribution of
+        each matched source, and that credit is shown in the break overlay.
       </p>
 
       <h2>Permissions</h2>
-      <p>Paint Pomodoro requests the following browser permissions:</p>
+      <p>Black History Pomodoro requests the following browser permissions:</p>
       <ul>
-        <li><strong>storage</strong> — save timer, tasks, and painting progress locally</li>
+        <li><strong>storage</strong> — save timer, tasks, and discovery progress locally</li>
         <li><strong>alarms</strong> — run the timer when the popup is closed</li>
         <li><strong>tabs</strong> — find an active browser tab to show the break overlay</li>
         <li><strong>scripting</strong> — inject the overlay when a break starts</li>
@@ -132,7 +150,7 @@
 
       <h2>Children’s privacy</h2>
       <p>
-        Paint Pomodoro is not directed at children under 13, and we do not knowingly collect
+        Black History Pomodoro is not directed at children under 13, and we do not knowingly collect
         personal information from anyone.
       </p>
 
@@ -146,7 +164,7 @@
       <div class="card">
         <p style="margin: 0;">
           Questions about this policy? Open an issue on
-          <a href="https://github.com/AirFan003/PaintPomodoro">GitHub</a>
+          <a href="https://github.com/mitchelldawkinsjr/Black-History-Pomodoro">GitHub</a>
           or contact the developer through the Chrome Web Store listing.
         </p>
       </div>

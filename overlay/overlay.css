@@ -1,4 +1,4 @@
-@import url('../shared/met-theme.css');
+@import url('../shared/theme.css');
 
 *,
 *::before,
@@ -42,15 +42,19 @@ body {
   width: min(400px, calc(100vw - 48px));
   max-height: min(62vh, 520px);
   border-radius: var(--radius-md);
-  background: rgba(255, 252, 247, 0.96);
+  background: rgba(20, 14, 11, 0.94);
   border: 1px solid var(--color-border);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(218, 183, 164, 0.06);
   font-family: var(--font-sans);
+  color: var(--color-ink);
   pointer-events: auto;
   z-index: 3;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(10px);
 }
 
 #reveal-hud[hidden] {
@@ -63,6 +67,24 @@ body {
 
 #reveal-hud.is-collapsed .reveal-hud-body {
   display: none;
+}
+
+.reveal-melanin-bar {
+  height: 5px;
+  width: 100%;
+  background: var(--melanin-stripes);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.reveal-melanin-bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .reveal-hud-header {
@@ -86,24 +108,24 @@ body {
 }
 
 .reveal-hud-toggle:hover {
-  background: rgba(154, 79, 66, 0.04);
+  background: rgba(179, 114, 82, 0.1);
 }
 
 .reveal-progress {
   margin: 0;
   font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--melanin-3);
   flex: 1;
 }
 
 .reveal-timer {
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 1.0625rem;
-  font-weight: 400;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   color: var(--color-ink);
@@ -113,8 +135,8 @@ body {
 .reveal-chevron {
   width: 7px;
   height: 7px;
-  border-right: 1.5px solid var(--color-accent);
-  border-bottom: 1.5px solid var(--color-accent);
+  border-right: 1.5px solid var(--melanin-3);
+  border-bottom: 1.5px solid var(--melanin-3);
   transform: rotate(45deg);
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -135,11 +157,20 @@ body {
   overflow: hidden;
 }
 
+.reveal-kicker {
+  margin: 0 0 6px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--melanin-2);
+}
+
 .reveal-headline {
   margin: 0 0 var(--space-xs);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 1.0625rem;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--color-ink);
   flex-shrink: 0;
@@ -161,7 +192,7 @@ body {
   margin: 0 0 12px;
   padding-right: 4px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(154, 79, 66, 0.3) transparent;
+  scrollbar-color: rgba(179, 114, 82, 0.45) transparent;
 }
 
 .reveal-clue-placeholder {
@@ -175,8 +206,9 @@ body {
   margin: 0 0 var(--space-sm);
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(41, 25, 17, 0.85);
   border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid var(--melanin-4);
 }
 
 .reveal-clue-entry:last-child {
@@ -184,8 +216,8 @@ body {
 }
 
 .reveal-clue-entry.is-new {
-  border-color: rgba(154, 79, 66, 0.28);
-  background: rgba(255, 248, 242, 0.95);
+  border-color: rgba(198, 147, 118, 0.4);
+  background: rgba(95, 57, 38, 0.55);
   animation: reveal-clue-in 0.45s ease-out;
 }
 
@@ -204,23 +236,57 @@ body {
 .reveal-clue-label {
   margin: 0 0 3px;
   font-size: 0.625rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--melanin-3);
+}
+
+.reveal-fact {
+  margin: 0 0 14px;
+  padding: 14px 14px 15px;
+  border-radius: var(--radius-sm);
+  background: rgba(20, 14, 11, 0.72);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--melanin-2);
+  font-family: var(--font-fact);
+  font-optical-sizing: auto;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+  color: var(--color-ink);
+  text-wrap: pretty;
+}
+
+.reveal-fact[hidden] {
+  display: none;
+}
+
+.reveal-fact.is-complete {
+  font-size: 1.125rem;
+  line-height: 1.6;
 }
 
 .reveal-clue-value {
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: 0.875rem;
+  font-family: var(--font-fact);
+  font-optical-sizing: auto;
+  font-size: 0.9375rem;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.5;
   color: var(--color-ink);
+  text-wrap: pretty;
+}
+
+.reveal-clue-entry.is-fact .reveal-clue-value {
+  font-size: 1rem;
+  line-height: 1.55;
 }
 
 .reveal-clue-detail {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--color-ink-secondary);
@@ -231,7 +297,7 @@ body {
   padding-top: 10px;
   border-top: 1px solid var(--color-border-subtle);
   font-size: 0.625rem;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-ink-subtle);

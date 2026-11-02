@@ -120,13 +120,23 @@ test('live discovery: matched image, cached by id, expires after TTL', async () 
   assert.equal(service.get('bha-f1'), null);
 });
 
-test('live discovery without a known subject gets the generic visual with depictsSubject:false', async () => {
-  const source = new StubSource(() => upstreamResults('f2', { people: undefined }));
+test('live discovery without a known subject skips generic and uses a reviewed fallback image', async () => {
+  const source = new StubSource(() => ({
+    Results: [
+      {
+        _id: 'f2',
+        text: 'In 1961 a new institute for the arts was founded.',
+        people: undefined,
+        tags: ['Arts'],
+        source: 'Test Archive',
+      },
+    ],
+  }));
   const commons = new StubCommons([commonsImage()]);
   const { service } = await makeService({ source, commons });
   const d = await service.next();
-  assert.equal(d.visual.depictsSubject, false);
-  assert.equal(d.visual.depictionType, 'generic');
+  assert.equal(d.provider, 'curated');
+  assert.equal(d.visual.depictsSubject, true);
   assert.equal(commons.queries.length, 0, 'no Commons search when subject is unknown');
 });
 
@@ -138,13 +148,18 @@ test('live discovery honors exclude and moves on to a different fact', async () 
 });
 
 test('missing source on a live fact is surfaced as the provider label, never invented', async () => {
-  const source = new StubSource(() => ({ data: [{ text: 'Only text.' }] }));
-  const { service } = await makeService({ source });
+  const source = new StubSource(() => ({
+    data: [{ text: 'Test Person founded a school.', people: ['Test Person'] }],
+  }));
+  const { service } = await makeService({
+    source,
+    commons: new StubCommons([commonsImage()]),
+  });
   const d = await service.next();
   assert.equal(d.provider, 'blackhistoryapi');
   assert.equal(d.source.label, 'Black History API');
   assert.equal(d.source.url, null);
-  assert.deepEqual(d.people, []);
+  assert.deepEqual(d.people, ['Test Person']);
   assert.deepEqual(d.tags, []);
 });
 

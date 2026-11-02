@@ -7,11 +7,14 @@ import { BlackHistoryClient } from '../src/providers/blackHistoryClient.js';
 import { DiscoveryService, INLINE_FALLBACKS } from '../src/services/discoveryService.js';
 import { ImageMatcher } from '../src/services/imageMatcher.js';
 import { MediaStore } from '../src/services/mediaStore.js';
-import { JPEG_BYTES, StubCommons, fakeFetch, tmpDir } from './helpers.js';
+import { JPEG_BYTES, StubCommons, commonsImage, fakeFetch, tmpDir } from './helpers.js';
 
 const SECRET = 'sk-super-secret-key-123';
 
-async function makeApp(env: Record<string, string> = {}, opts: { withKey?: boolean; upstream?: typeof fetch } = {}) {
+async function makeApp(
+  env: Record<string, string> = {},
+  opts: { withKey?: boolean; upstream?: typeof fetch; withCommons?: boolean } = {},
+) {
   const dir = await tmpDir();
   const config = loadConfig({
     PUBLIC_API_ORIGIN: 'https://api.example.test',
@@ -26,9 +29,10 @@ async function makeApp(env: Record<string, string> = {}, opts: { withKey?: boole
   const source = config.apiKey
     ? new BlackHistoryClient({ apiKey: config.apiKey, baseUrl: config.baseUrl, factPath: config.factPath, fetchImpl: opts.upstream })
     : null;
+  const commons = opts.withCommons ? new StubCommons([commonsImage()]) : new StubCommons([]);
   const service = new DiscoveryService({
     source,
-    matcher: new ImageMatcher(new StubCommons([]), config.imageMatchAttempts),
+    matcher: new ImageMatcher(commons, config.imageMatchAttempts),
     mediaStore,
     publicOrigin: config.publicOrigin,
     cacheTtlSeconds: config.cacheTtlSeconds,
@@ -167,16 +171,27 @@ test('upstream auth failure falls back and never leaks the API key', async () =>
 });
 
 test('API key is sent only as a request header, never in the URL', async () => {
-  const upstream = fakeFetch(() => Response.json({ data: [{ text: 'Test Person did a thing.', source_references: ['Archive'] }] }));
+  const upstream = fakeFetch(() =>
+    Response.json({
+      data: [
+        {
+          text: 'Test Person did a thing.',
+          related_people: [{ type: 'person', value: 'Test Person' }],
+          source_references: ['Archive'],
+        },
+      ],
+    }),
+  );
   const seen: Array<{ url: string; headers: unknown }> = [];
   const wrapped = (async (url: string, init?: RequestInit) => {
     seen.push({ url, headers: init?.headers });
     return upstream(url);
   }) as unknown as typeof fetch;
-  const { app } = await makeApp({}, { withKey: true, upstream: wrapped });
+  const { app } = await makeApp({}, { withKey: true, upstream: wrapped, withCommons: true });
   const res = await app.inject('/v1/discoveries/next');
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().provider, 'blackhistoryapi');
+  assert.equal(res.json().visual.depictsSubject, true);
   assert.ok(seen.length >= 1);
   assert.ok(!seen[0]!.url.includes(SECRET));
   assert.equal((seen[0]!.headers as Record<string, string>)['x-api-key'], SECRET);

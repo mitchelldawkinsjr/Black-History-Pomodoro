@@ -1,135 +1,212 @@
-import {
-  buildArtistProfile,
-  buildCollectionDetail,
-  buildCollectionHighlight,
-  buildCultureContext,
-  buildDateContext,
-  buildDepartmentContext,
-  buildMediumContext,
-  buildScaleContext,
-  buildSubjectNarrative,
-  buildTitleContext,
-  buildWorkStory,
-  formatTagList,
-  getMetCatalogText,
-  getTagTerms,
-  truncateText,
-} from './artwork-copy.js';
+/**
+ * Progressive Black History fact/clue reveal across 10 earned breaks.
+ * Only source-grounded fields; never invent dates, places, or quotations.
+ */
 
-const REVEAL_TIERS = [
-  {
-    breakAt: 1,
-    label: 'Collection',
-    getValue: (artwork) => artwork.department,
-    getDetail: (artwork) => buildDepartmentContext(artwork),
-  },
-  {
-    breakAt: 2,
-    label: 'Medium',
-    getValue: (artwork) => artwork.medium,
-    getDetail: (artwork) => buildMediumContext(artwork),
-  },
-  {
-    breakAt: 3,
-    label: 'Origins',
-    getValue: (artwork) => (
-      artwork.culture
-      || artwork.country
-      || artwork.period
-      || artwork.artistNationality
-      || artwork.department
-    ),
-    getDetail: (artwork) => buildCultureContext(artwork),
-  },
-  {
-    breakAt: 4,
-    label: 'Date',
-    getValue: (artwork) => artwork.objectDate || artwork.period,
-    getDetail: (artwork) => buildDateContext(artwork),
-  },
-  {
-    breakAt: 5,
-    label: 'Artist',
-    getValue: (artwork) => artwork.artistDisplayName,
-    getDetail: (artwork) => buildArtistProfile(artwork),
-  },
-  {
-    breakAt: 6,
-    label: 'Subjects',
-    getValue: (artwork) => formatTagList(getTagTerms(artwork)),
-    getDetail: (artwork) => buildSubjectNarrative(artwork),
-  },
-  {
-    breakAt: 7,
-    label: 'Title',
-    getValue: (artwork) => artwork.title,
-    getDetail: (artwork) => buildTitleContext(artwork),
-  },
-  {
-    breakAt: 8,
-    label: 'About this work',
-    getValue: (artwork) => {
-      const story = buildWorkStory(artwork);
-      return story ? truncateText(story, 160) : '';
-    },
-    getDetail: (artwork) => buildWorkStory(artwork),
-  },
-  {
-    breakAt: 9,
-    label: 'Scale',
-    getValue: (artwork) => artwork.dimensions,
-    getDetail: (artwork) => buildScaleContext(artwork),
-  },
-  {
-    breakAt: 10,
-    label: 'At The Met',
-    getValue: (artwork) => (
-      buildCollectionHighlight(artwork)
-      || artwork.repository
-      || 'The Metropolitan Museum of Art'
-    ),
-    getDetail: (artwork) => buildCollectionDetail(artwork),
-  },
-];
+function getDiscovery(artwork) {
+  const nested = artwork?.discovery;
+  if (nested && typeof nested.factText === 'string' && nested.factText.trim()) {
+    return nested;
+  }
+  if (artwork && typeof artwork.factText === 'string' && artwork.factText.trim()) {
+    return artwork;
+  }
+  return null;
+}
 
-function buildClueEntry(artwork, tier) {
-  const rawValue = tier.getValue?.(artwork);
-  const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+function clean(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const text = clean(value);
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
+}
+
+function excerptAtWords(text, ratio) {
+  const words = clean(text).split(' ').filter(Boolean);
+  if (!words.length) {
+    return '';
+  }
+  const count = Math.max(1, Math.min(words.length, Math.ceil(words.length * ratio)));
+  let excerpt = words.slice(0, count).join(' ');
+  if (count < words.length) {
+    excerpt = `${excerpt}…`;
+  }
+  return excerpt;
+}
+
+function shortExcerpt(text, maxWords = 14) {
+  const words = clean(text).split(' ').filter(Boolean);
+  if (!words.length) {
+    return '';
+  }
+  if (words.length <= maxWords) {
+    return words.join(' ');
+  }
+  return `${words.slice(0, maxWords).join(' ')}…`;
+}
+
+function buildClue(label, value, detail = '', breakAt) {
+  const cleaned = clean(value);
+  if (!cleaned) {
+    return null;
+  }
+  return {
+    label,
+    value: cleaned,
+    detail: clean(detail),
+    breakNumber: breakAt,
+    kind: label === 'Fact' || label === 'Excerpt' ? 'fact' : 'meta',
+  };
+}
+
+/** Attribution for the image the discovery was matched to (Commons credit, creator, license). */
+export function buildImageAttribution(discovery) {
+  const visual = discovery?.visual;
+  if (!visual || typeof visual !== 'object') {
+    return 'Courtesy of The Black History API';
+  }
+
+  const credit = clean(visual.credit ?? '');
+  if (credit) {
+    if (/^courtesy of\b/i.test(credit)) {
+      return credit;
+    }
+    if (/^black history (pomodoro|api)$/i.test(credit)) {
+      return 'Courtesy of The Black History API';
+    }
+    return `Courtesy of ${credit}`;
+  }
+
+  const creator = clean(visual.creator ?? '');
+  const license = clean(visual.license ?? '');
+  const title = clean(visual.title ?? '');
+  if (creator && license) {
+    return `Courtesy of ${creator} — ${license}`;
+  }
+  if (title && license) {
+    return `Courtesy of ${title} — ${license}`;
+  }
+  if (license) {
+    return `Courtesy of ${license}`;
+  }
+  return 'Courtesy of The Black History API';
+}
+
+function buildImageClue(discovery) {
+  const visual = discovery?.visual;
+  if (!visual || typeof visual !== 'object') {
+    return null;
+  }
+
+  const title = clean(visual.title ?? '');
+  const credit = clean(visual.credit ?? '');
+  const license = clean(visual.license ?? '');
+  const creator = clean(visual.creator ?? '');
+  const depictsSubject = visual.depictsSubject === true;
+
+  const value =
+    title
+    || credit
+    || (depictsSubject ? 'Matched subject image' : 'Project visual');
   if (!value) {
     return null;
   }
 
-  const detail = tier.getDetail?.(artwork);
-  const cleanedDetail = typeof detail === 'string' ? detail.trim() : '';
+  const detailParts = [];
+  if (credit && credit !== title && credit !== value) {
+    detailParts.push(credit);
+  } else if (creator) {
+    detailParts.push(creator);
+  }
+  if (license && !detailParts.some((part) => part.toLowerCase().includes(license.toLowerCase()))) {
+    detailParts.push(license);
+  }
+  if (!depictsSubject) {
+    detailParts.push('Generic visual — subject image not verified');
+  }
 
   return {
-    label: tier.label,
-    value: String(value),
-    detail: cleanedDetail,
-    breakNumber: tier.breakAt,
+    label: 'Image',
+    value,
+    detail: detailParts.join(' · '),
+    breakNumber: 10,
+    kind: 'meta',
   };
 }
 
-export function getUnlockedClues(artwork, breakCount) {
-  if (!artwork) {
+export function deriveRevealCards(discovery, earnedBreaks) {
+  if (!discovery || earnedBreaks < 1) {
     return [];
   }
 
-  return REVEAL_TIERS
-    .filter((tier) => breakCount >= tier.breakAt)
-    .map((tier) => buildClueEntry(artwork, tier))
-    .filter(Boolean);
+  const tags = uniqueStrings(discovery.tags ?? []);
+  const people = uniqueStrings(discovery.people ?? []);
+  const factText = clean(discovery.factText);
+  const eventDate = clean(discovery.eventDate ?? '');
+  const sourceLabel = clean(discovery.source?.label ?? '');
+  const cards = [];
+
+  const push = (breakAt, label, value, detail = '') => {
+    if (earnedBreaks < breakAt) {
+      return;
+    }
+    const clue = buildClue(label, value, detail, breakAt);
+    if (clue) {
+      cards.push(clue);
+    }
+  };
+
+  push(1, 'Discovery', 'A story from Black history', tags[0] || '');
+  if (tags[0]) {
+    push(2, 'Theme', tags[0], tags[1] || '');
+  } else if (tags[1]) {
+    push(2, 'Theme', tags[1]);
+  }
+  if (eventDate) {
+    push(3, 'When', eventDate);
+  }
+  // Geography/institution only when explicitly present in source metadata — omit otherwise.
+  if (people[0]) {
+    push(7, 'People', people.join(', '));
+  }
+  if (factText) {
+    push(5, 'Excerpt', shortExcerpt(factText, 12), '');
+    push(6, 'Excerpt', shortExcerpt(factText, 20), tags[1] || tags[0] || '');
+    push(8, 'Fact', excerptAtWords(factText, 0.4));
+    push(9, 'Fact', excerptAtWords(factText, 0.75));
+    push(10, 'Fact', factText, sourceLabel ? `Fact source: ${sourceLabel}` : '');
+  }
+
+  if (earnedBreaks >= 10) {
+    const imageClue = buildImageClue(discovery);
+    if (imageClue) {
+      cards.push(imageClue);
+    }
+  }
+
+  return cards;
+}
+
+export function getUnlockedClues(artwork, breakCount) {
+  return deriveRevealCards(getDiscovery(artwork), breakCount);
 }
 
 export function getUnlockedCluesForBreak(artwork, breakNumber) {
-  if (!artwork || breakNumber < 1) {
-    return [];
-  }
-
-  return REVEAL_TIERS
-    .filter((tier) => breakNumber >= tier.breakAt)
-    .map((tier) => buildClueEntry(artwork, tier))
-    .filter(Boolean);
+  return deriveRevealCards(getDiscovery(artwork), breakNumber);
 }
 
 export function getLatestClue(artwork, breakCount) {
@@ -138,41 +215,56 @@ export function getLatestClue(artwork, breakCount) {
 }
 
 export function getArtworkHeadline(artwork, breakCount) {
-  if (!artwork) {
-    return 'Loading today\'s painting…';
+  const discovery = getDiscovery(artwork);
+  if (!discovery?.factText) {
+    return 'Loading today’s discovery…';
   }
 
-  if (breakCount >= 7 && artwork.title) {
-    return artwork.title;
+  const people = uniqueStrings(discovery.people ?? []);
+  const tags = uniqueStrings(discovery.tags ?? []);
+  const eventDate = clean(discovery.eventDate ?? '');
+
+  if (breakCount >= 10) {
+    return people[0] || tags[0] || 'Black history discovery';
+  }
+  if (breakCount >= 7 && people[0]) {
+    return people[0];
+  }
+  if (breakCount >= 2 && tags[0]) {
+    return tags[0];
+  }
+  if (breakCount >= 1) {
+    return tags[0] || people[0] || 'A story from Black history';
   }
 
-  if (breakCount >= 5 && artwork.artistDisplayName) {
-    return artwork.artistDisplayName;
+  // Ready, before first break — tease without spoiling the fact.
+  if (people[0] && tags[0]) {
+    return `${people[0]} · ${tags[0]}`;
   }
-
-  if (breakCount >= 1 && artwork.department) {
-    return artwork.department;
+  if (people[0]) {
+    return people[0];
   }
-
-  return 'The Met collection';
+  if (tags[0] && eventDate) {
+    return `${tags[0]} · ${eventDate}`;
+  }
+  if (tags[0]) {
+    return tags[0];
+  }
+  if (eventDate) {
+    return `A story from ${eventDate}`;
+  }
+  return 'Today’s discovery is ready';
 }
 
 export function getClueForBreak(artwork, breakNumber) {
-  if (!artwork || breakNumber < 1) {
-    return null;
-  }
-
-  const tier = REVEAL_TIERS.find((entry) => entry.breakAt === breakNumber);
-  if (!tier) {
-    return null;
-  }
-
-  return buildClueEntry(artwork, tier);
+  const clues = deriveRevealCards(getDiscovery(artwork), breakNumber);
+  return clues.find((clue) => clue.breakNumber === breakNumber) ?? null;
 }
 
 export function getBreakRevealDisplay(artwork, breakNumber, maxBreaks = 10) {
   const paintingBreakNumber = ((breakNumber - 1) % maxBreaks) + 1;
   const unlockedClues = getUnlockedCluesForBreak(artwork, paintingBreakNumber);
+  const discovery = getDiscovery(artwork);
 
   return {
     breakNumber,
@@ -181,14 +273,16 @@ export function getBreakRevealDisplay(artwork, breakNumber, maxBreaks = 10) {
     clue: getClueForBreak(artwork, paintingBreakNumber),
     unlockedClues,
     headline: getArtworkHeadline(artwork, paintingBreakNumber),
-    progressLabel: `Break ${breakNumber}`,
-    attribution: 'Courtesy of The Metropolitan Museum of Art',
+    progressLabel: `Discovery ${paintingBreakNumber}/${maxBreaks}`,
+    attribution: buildImageAttribution(discovery),
+    factText: clean(discovery?.factText ?? ''),
   };
 }
 
 export function getArtworkDisplay(artwork, breakCount) {
   const clues = getUnlockedClues(artwork, breakCount);
   const latestClue = clues.length ? clues[clues.length - 1] : null;
+  const discovery = getDiscovery(artwork);
 
   return {
     headline: getArtworkHeadline(artwork, breakCount),
@@ -196,7 +290,9 @@ export function getArtworkDisplay(artwork, breakCount) {
     clues,
     titleUnlocked: breakCount >= 7,
     artistUnlocked: breakCount >= 5,
-    objectURL: breakCount >= 10 ? artwork?.objectURL ?? null : null,
-    objectID: artwork?.objectID ?? null,
+    objectURL: breakCount >= 10 ? discovery?.source?.url ?? null : null,
+    objectID: discovery?.id ?? artwork?.objectID ?? null,
+    factText: breakCount >= 8 ? clean(discovery?.factText ?? '') : '',
+    factComplete: breakCount >= 10,
   };
 }

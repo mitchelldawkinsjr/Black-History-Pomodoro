@@ -1,5 +1,5 @@
 /**
- * Watercolor reveal — dense overlapping splotches build the painting in ~20s, then hold.
+ * Watercolor reveal — dense overlapping splotches build the image in ~20s, then hold.
  */
 
 import {
@@ -272,9 +272,9 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       }
     }
 
-    function finishPaintIn() {
+    function finishPaintIn({ notify = true } = {}) {
       if (finishedPaintIn) {
-        return;
+        return exportWash();
       }
       finishedPaintIn = true;
 
@@ -295,7 +295,11 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       mode = 'resting';
       drawComposite();
       p.noLoop();
-      onPaintInComplete?.(exportWash());
+      const dataUrl = exportWash();
+      if (notify) {
+        onPaintInComplete?.(dataUrl);
+      }
+      return dataUrl;
     }
 
     function finishPaintOut() {
@@ -482,6 +486,20 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       paperFade = 1;
       fallbackPools = [];
       p.loop();
+    };
+
+    /**
+     * Finish this break's paint layer (if still painting) and return a cumulative
+     * canvas snapshot so the next break can continue the progression.
+     */
+    api.checkpointProgress = () => {
+      if (mode === 'paintIn' && !finishedPaintIn) {
+        return finishPaintIn({ notify: false });
+      }
+      if (mode === 'resting' || mode === 'paintOut') {
+        return exportWash();
+      }
+      return null;
     };
 
     api.pause = () => {

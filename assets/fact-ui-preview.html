@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fact UI preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(179,114,82,0.18), transparent 50%),
+        #0c0907;
+      color: var(--color-ink);
+      font-family: var(--font-sans);
+      display: grid;
+      place-items: center;
+      padding: 32px 20px 48px;
+    }
+    .frame {
+      width: min(920px, 100%);
+      display: grid;
+      gap: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .sub {
+      margin: 6px 0 0;
+      color: var(--color-ink-muted);
+      font-size: 0.875rem;
+    }
+    .stages {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+    @media (max-width: 800px) {
+      .stages { grid-template-columns: 1fr; }
+    }
+    .hud {
+      border-radius: var(--radius-md);
+      background: rgba(255, 252, 247, 0.04);
+      background: #1e1410;
+      border: 1px solid var(--color-border);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+      overflow: hidden;
+    }
+    .bar {
+      height: 4px;
+      background: var(--melanin-stripes);
+    }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--color-border-subtle);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+    }
+    .timer {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+      color: var(--color-ink);
+      text-transform: none;
+      font-weight: 500;
+    }
+    .body { padding: 16px; }
+    .kicker {
+      margin: 0 0 6px;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--melanin-3);
+    }
+    .headline {
+      margin: 0 0 4px;
+      font-family: var(--font-display);
+      font-size: 1.125rem;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .subtitle {
+      margin: 0 0 14px;
+      font-size: 0.8125rem;
+      color: var(--color-ink-muted);
+      line-height: 1.45;
+    }
+    .reveal-fact {
+      margin: 0 0 14px;
+      padding: 14px 14px 15px;
+      border-radius: var(--radius-sm);
+      background: rgba(20, 14, 11, 0.72);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--melanin-2);
+      font-family: var(--font-fact);
+      font-optical-sizing: auto;
+      font-size: 1.0625rem;
+      font-weight: 500;
+      line-height: 1.55;
+      letter-spacing: 0.005em;
+      color: var(--color-ink);
+      text-wrap: pretty;
+    }
+    .reveal-fact.is-complete {
+      font-size: 1.125rem;
+      line-height: 1.6;
+    }
+    .clue {
+      margin: 0 0 8px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(41, 25, 17, 0.85);
+      border: 1px solid var(--color-border-subtle);
+      border-left: 3px solid var(--melanin-4);
+    }
+    .clue-label {
+      margin: 0 0 3px;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--melanin-3);
+    }
+    .clue-value {
+      margin: 0;
+      font-family: var(--font-fact);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .attr {
+      margin: 12px 0 0;
+      padding-top: 10px;
+      border-top: 1px solid var(--color-border-subtle);
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-ink-subtle);
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div>
+      <h1>Wired-in fact reveal — George Washington Carver</h1>
+      <p class="sub">Same Literata fact panel used in the extension overlay / popup</p>
+    </div>
+    <div class="stages" id="stages"></div>
+  </div>
+  <script type="module">
+    const data = await fetch('./fact-preview-data.json').then(r => r.json());
+    const root = document.getElementById('stages');
+    for (const breakAt of [1, 5, 8, 10]) {
+      const s = data.stages[breakAt];
+      const card = document.createElement('section');
+      card.className = 'hud';
+      card.innerHTML = `
+        <div class="bar"></div>
+        <div class="head"><span>${s.progress}</span><span class="timer">04:12</span></div>
+        <div class="body">
+          <p class="kicker">Black History Pomodoro</p>
+          <p class="headline"></p>
+          <p class="subtitle"></p>
+          <div class="fact-slot"></div>
+          <div class="clues"></div>
+          <p class="attr"></p>
+        </div>`;
+      card.querySelector('.headline').textContent = s.headline;
+      card.querySelector('.subtitle').textContent = s.subtitle;
+      const slot = card.querySelector('.fact-slot');
+      if (s.fact) {
+        const fact = document.createElement('p');
+        fact.className = 'reveal-fact' + (breakAt === 10 ? ' is-complete' : '');
+        fact.textContent = s.fact;
+        slot.appendChild(fact);
+      }
+      const clues = card.querySelector('.clues');
+      for (const [label, value] of s.clues) {
+        const el = document.createElement('div');
+        el.className = 'clue';
+        el.innerHTML = `<p class="clue-label"></p><p class="clue-value"></p>`;
+        el.querySelector('.clue-label').textContent = label;
+        el.querySelector('.clue-value').textContent = value;
+        clues.appendChild(el);
+      }
+      card.querySelector('.attr').textContent =
+        data.discovery?.visual?.credit
+          ? `Courtesy of ${data.discovery.visual.credit}`
+          : 'Courtesy of The Black History API';
+      root.appendChild(card);
+    }
+  </script>
+</body>
+</html>

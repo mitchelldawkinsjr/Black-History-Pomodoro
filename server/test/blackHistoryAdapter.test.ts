@@ -83,6 +83,25 @@ test('accepts people/tags as objects or a single string and dedupes', () => {
   assert.deepEqual(fact?.tags, ['Science']);
 });
 
+test('reads related_people/tags {type,value} objects from Black History API v2', () => {
+  const fact = normalizeFactRecord({
+    text: 'Shirley Chisholm was elected to Congress.',
+    related_people: [{ type: 'person', value: 'Shirley Chisholm' }],
+    tags: [{ type: 'topic', value: 'Politics' }, { type: 'topic', value: 'politics' }],
+  });
+  assert.deepEqual(fact?.people, ['Shirley Chisholm']);
+  assert.deepEqual(fact?.tags, ['Politics']);
+});
+
+test('infers a leading proper name when related_people is missing', () => {
+  const fact = normalizeFactRecord({
+    text: 'Langston Hughes was inducted into the National Institute of Arts and Letters in 1961.',
+  });
+  assert.deepEqual(fact?.people, ['Langston Hughes']);
+  const noName = normalizeFactRecord({ text: 'In 1961 a new institute was founded.' });
+  assert.deepEqual(noName?.people, []);
+});
+
 test('strips HTML and collapses whitespace in text', () => {
   const fact = normalizeFactRecord({ text: '  <p>Hello\n  <b>world</b></p> ' });
   assert.equal(fact?.factText, 'Hello world');

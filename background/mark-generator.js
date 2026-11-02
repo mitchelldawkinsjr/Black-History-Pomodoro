@@ -161,6 +161,7 @@ export function generateMarksFromImageData(imageData, width, height, maxBreaks =
   return {
     version: MARKS_VERSION,
     objectID: null,
+    maxBreaks,
     sampleWidth: width,
     sampleHeight: height,
     gridSize: GRID_SIZE,
@@ -173,6 +174,7 @@ export async function generateMarksFromImageUrl(imageUrl, objectID, maxBreaks = 
   const { imageData, width, height } = await fetchImageData(imageUrl);
   const marks = generateMarksFromImageData(imageData.data, width, height, maxBreaks);
   marks.objectID = objectID;
+  marks.maxBreaks = maxBreaks;
   return marks;
 }
 

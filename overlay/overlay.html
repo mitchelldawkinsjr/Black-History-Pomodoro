@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paint Pomodoro Overlay</title>
+    <title>Black History Pomodoro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Sora:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="overlay.css" />
@@ -16,6 +16,7 @@
     <div id="overlay-root">
       <div id="paint-container"></div>
       <aside id="reveal-hud" hidden aria-live="polite">
+        <div class="reveal-melanin-bar" aria-hidden="true"></div>
         <header class="reveal-hud-header">
           <button
             type="button"
@@ -24,16 +25,18 @@
             aria-expanded="true"
             aria-controls="reveal-hud-body"
           >
-            <span class="reveal-progress" id="reveal-progress">Break 1</span>
+            <span class="reveal-progress" id="reveal-progress">Discovery 1/10</span>
             <span class="reveal-timer" id="reveal-timer">05:00</span>
             <span class="reveal-chevron" aria-hidden="true"></span>
           </button>
         </header>
         <div class="reveal-hud-body" id="reveal-hud-body">
-          <p class="reveal-headline" id="reveal-headline">Painting information</p>
-          <p class="reveal-subtitle" id="reveal-subtitle">Reveal more as you take more breaks</p>
+          <p class="reveal-kicker">Black History Pomodoro</p>
+          <p class="reveal-headline" id="reveal-headline">Discovery</p>
+          <p class="reveal-subtitle" id="reveal-subtitle">Black history facts unlock as you earn focus sessions</p>
+          <p class="reveal-fact" id="reveal-fact" hidden></p>
           <div class="reveal-clues" id="reveal-clues"></div>
-          <p class="reveal-attribution">Courtesy of The Metropolitan Museum of Art</p>
+          <p class="reveal-attribution" id="reveal-attribution">Image credit loads with today’s discovery</p>
         </div>
       </aside>
     </div>

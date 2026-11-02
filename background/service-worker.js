@@ -3,10 +3,12 @@ import {
   MESSAGE,
   OVERLAY,
   PHASE,
+  PAINT_OUT_WATCHDOG_MS,
   createDefaultState,
   createTask,
   getPhaseDurationMs,
   getRemainingMs,
+  normalizeSettings,
 } from './state.js';
 import {
   MAX_DAILY_BREAKS,
@@ -20,26 +22,50 @@ import {
   rotateArtworkIfNewSession,
   rotateToNextPainting,
   saveDailyCanvas,
+  completeBreakProgress,
 } from './daily-art.js';
 import { getArtworkDisplay, getBreakRevealDisplay } from './reveal-tiers.js';
 import { packMarksForBreak } from './mark-generator.js';
 
-const STORAGE_KEY = 'paintPomodoroState';
+const STORAGE_KEY = 'blackHistoryPomodoroState';
+const LEGACY_STORAGE_KEY = 'paintPomodoroState';
 
 let state = createDefaultState();
 let pendingBreakNumber = null;
 let overlayTabId = null;
 
 async function loadState() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  const loaded = stored[STORAGE_KEY] ?? createDefaultState();
+  const stored = await chrome.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
+  let loaded = stored[STORAGE_KEY];
+  if (!loaded && stored[LEGACY_STORAGE_KEY]) {
+    loaded = stored[LEGACY_STORAGE_KEY];
+    await chrome.storage.local.set({ [STORAGE_KEY]: loaded });
+    await chrome.storage.local.remove(LEGACY_STORAGE_KEY);
+  }
+  loaded = loaded ?? createDefaultState();
   const migrated = ensureTasksCurrentDay(loaded);
-  state = migrated;
-  if (loaded.tasksDateKey !== migrated.tasksDateKey) {
+  const settings = normalizeSettings(migrated.settings);
+  state = { ...migrated, settings };
+  if (
+    loaded.tasksDateKey !== migrated.tasksDateKey ||
+    JSON.stringify(loaded.settings ?? {}) !== JSON.stringify(settings)
+  ) {
     await saveState();
   }
   if (state.phase === PHASE.PAINTING_IN) {
     state.phase = PHASE.RESTING;
+  }
+  // Recover from a previous paint-out that never received PAINT_OUT_DONE.
+  if (state.phase === PHASE.PAINTING_OUT) {
+    state = {
+      ...state,
+      phase: PHASE.IDLE,
+      phaseStartedAt: null,
+      pausedAt: null,
+      remainingMs: null,
+    };
+    await saveState();
+    await clearPaintOutWatchdog();
   }
 }
 
@@ -72,8 +98,17 @@ async function broadcastState() {
   }
 }
 
+function getDiscoveryPeriods() {
+  return state.settings?.discoveryPeriods ?? MAX_DAILY_BREAKS;
+}
+
 async function getPublicState() {
   const dailyArt = await loadDailyArt();
+  const discovery = dailyArt.artwork?.discovery ?? null;
+  const artworkReady = Boolean(
+    dailyArt.artwork?.objectID && discovery?.factText,
+  );
+  const maxBreaks = getDiscoveryPeriods();
   return {
     ...state,
     remainingMs: getRemainingMs(state),
@@ -81,9 +116,12 @@ async function getPublicState() {
       breakCount: dailyArt.breakCount,
       totalBreakCount: dailyArt.totalBreakCount ?? dailyArt.breakCount ?? 0,
       dateKey: dailyArt.dateKey,
-      maxBreaks: MAX_DAILY_BREAKS,
+      maxBreaks,
       artworkDisplay: getArtworkDisplay(dailyArt.artwork, dailyArt.breakCount),
-      artworkReady: Boolean(dailyArt.artwork?.objectID),
+      artworkReady,
+      discoveryId: discovery?.id ?? null,
+      discoveryError: dailyArt.discoveryError ?? null,
+      discoveryLoading: Boolean(dailyArt.discoveryLoading),
     },
   };
 }
@@ -146,7 +184,7 @@ async function ensureContentScript(tabId) {
       await chrome.tabs.sendMessage(tabId, { type: 'PING' });
       return true;
     } catch (error) {
-      console.warn('[PaintPomodoro] Could not inject into tab', tabId, error);
+      console.warn('[BlackHistoryPomodoro] Could not inject into tab', tabId, error);
       return false;
     }
   }
@@ -160,7 +198,7 @@ async function sendToTab(tabId, message) {
     await chrome.tabs.sendMessage(tabId, message);
     return true;
   } catch (error) {
-    console.warn('[PaintPomodoro] Message failed for tab', tabId, error);
+    console.warn('[BlackHistoryPomodoro] Message failed for tab', tabId, error);
     return false;
   }
 }
@@ -219,14 +257,15 @@ async function sendOverlayCommand(command, payload = {}) {
 }
 
 async function beginBreak() {
-  let art = await ensureDailyArtwork();
+  const maxBreaks = getDiscoveryPeriods();
+  let art = await ensureDailyArtwork(maxBreaks);
 
-  if (art.breakCount >= MAX_DAILY_BREAKS) {
-    art = await rotateToNextPainting();
+  if (art.breakCount >= maxBreaks) {
+    art = await rotateToNextPainting(maxBreaks);
   }
 
   const breakNumber = getNextBreakNumber(art);
-  const paintingBreakNumber = getPaintingBreakNumber(breakNumber);
+  const paintingBreakNumber = getPaintingBreakNumber(breakNumber, maxBreaks);
   const previousCanvas = getCanvasForBreak(art);
 
   pendingBreakNumber = breakNumber;
@@ -242,7 +281,7 @@ async function beginBreak() {
   });
   await schedulePhaseEndAlarm();
 
-  const breakReveal = getBreakRevealDisplay(art.artwork, breakNumber, MAX_DAILY_BREAKS);
+  const breakReveal = getBreakRevealDisplay(art.artwork, breakNumber, maxBreaks);
 
   const delivery = await sendOverlayToTargets({
     type: OVERLAY.COMMAND,
@@ -250,7 +289,7 @@ async function beginBreak() {
     breakNumber,
     paintingBreakNumber,
     previousCanvas,
-    maxBreaks: MAX_DAILY_BREAKS,
+    maxBreaks,
     artwork: art.artwork,
     marks: packMarksForBreak(art.marks, paintingBreakNumber),
     breakDurationMs,
@@ -263,28 +302,92 @@ async function beginBreak() {
   return delivery.delivered;
 }
 
-async function beginPaintOut() {
-  if (state.phase === PHASE.PAINTING_OUT) {
-    await sendOverlayCommand('PAINT_OUT');
-    return;
-  }
+async function clearPaintOutWatchdog() {
+  await chrome.alarms.clear(ALARM.PAINT_OUT_WATCHDOG);
+}
 
-  if (state.phase !== PHASE.RESTING) {
-    return;
-  }
-
-  await setState({
-    ...state,
-    phase: PHASE.PAINTING_OUT,
-    phaseStartedAt: Date.now(),
-    pausedAt: null,
-    remainingMs: null,
+async function schedulePaintOutWatchdog() {
+  await clearPaintOutWatchdog();
+  await chrome.alarms.create(ALARM.PAINT_OUT_WATCHDOG, {
+    when: Date.now() + PAINT_OUT_WATCHDOG_MS,
   });
-  await clearAlarm();
-  await sendOverlayCommand('PAINT_OUT');
+}
+
+/**
+ * Ask the overlay to finish this break's paint layer and return a canvas snapshot.
+ * Resolves with a data URL, or null if the overlay can't export in time.
+ */
+function waitForCanvasCheckpoint(timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (dataUrl) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      chrome.runtime.onMessage.removeListener(onMessage);
+      resolve(typeof dataUrl === 'string' && dataUrl.startsWith('data:') ? dataUrl : null);
+    };
+
+    const onMessage = (message) => {
+      if (message?.type === MESSAGE.CHECKPOINT_DONE) {
+        finish(message.dataUrl ?? null);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(onMessage);
+
+    sendOverlayCommand('CHECKPOINT')
+      .then((delivered) => {
+        if (!delivered) {
+          finish(null);
+        }
+      })
+      .catch(() => finish(null));
+
+    setTimeout(() => finish(null), timeoutMs);
+  });
+}
+
+/**
+ * End the break, persist paint progression, and start the next focus session.
+ * Focus timer does not wait on paint-out animation.
+ */
+async function endBreakAndResumeFocus() {
+  if (
+    state.phase !== PHASE.RESTING
+    && state.phase !== PHASE.PAINTING_OUT
+  ) {
+    return;
+  }
+
+  const breakNumber = pendingBreakNumber;
+  const dataUrl = await waitForCanvasCheckpoint();
+
+  const maxBreaks = getDiscoveryPeriods();
+  if (breakNumber != null) {
+    pendingBreakNumber = null;
+    await completeBreakProgress(breakNumber, dataUrl, maxBreaks);
+  } else if (dataUrl) {
+    // Paint-in already credited the break; refresh the cumulative canvas.
+    const art = await loadDailyArt();
+    const credited = art.totalBreakCount ?? art.breakCount ?? 0;
+    if (credited > 0) {
+      await completeBreakProgress(credited, dataUrl, maxBreaks);
+    }
+  }
+
+  await startFocus();
+}
+
+/** @deprecated Prefer endBreakAndResumeFocus — kept for late overlay PAINT_OUT_DONE. */
+async function beginPaintOut() {
+  await endBreakAndResumeFocus();
 }
 
 async function startFocus() {
+  await clearPaintOutWatchdog();
   overlayTabId = null;
   await hideOverlayOnAllTabs();
   await sendOverlayCommand('RESET');
@@ -333,12 +436,51 @@ async function resumeTimer() {
 }
 
 async function resetTimer() {
-  const { tasks, tasksDateKey } = state;
+  const { tasks, tasksDateKey, settings } = state;
   await clearAlarm();
+  await clearPaintOutWatchdog();
   overlayTabId = null;
   await hideOverlayOnAllTabs();
   await sendOverlayCommand('RESET');
-  await setState({ ...createDefaultState(), tasks, tasksDateKey });
+  await setState({
+    ...createDefaultState(),
+    tasks,
+    tasksDateKey,
+    settings: normalizeSettings(settings),
+  });
+}
+
+async function updateSettings(partial = {}) {
+  const nextSettings = normalizeSettings(partial, state.settings);
+  const unchanged =
+    nextSettings.focusMinutes === state.settings.focusMinutes &&
+    nextSettings.breakMinutes === state.settings.breakMinutes &&
+    nextSettings.discoveryPeriods === state.settings.discoveryPeriods &&
+    nextSettings.paintRevealSeconds === state.settings.paintRevealSeconds &&
+    nextSettings.paintOutSeconds === state.settings.paintOutSeconds;
+
+  if (unchanged) {
+    return;
+  }
+
+  const periodsChanged =
+    nextSettings.discoveryPeriods !== state.settings.discoveryPeriods;
+
+  // Idle: new focus length shows right away.
+  // Active/paused: keep current remaining; next focus/break uses the new lengths.
+  await setState({
+    ...state,
+    settings: nextSettings,
+  });
+
+  // Rebuild mark tiers when the period count changes so painting stays aligned.
+  if (periodsChanged) {
+    try {
+      await ensureDailyArtwork(nextSettings.discoveryPeriods);
+    } catch (error) {
+      console.warn('[BlackHistoryPomodoro] Failed to refresh marks for new period count', error);
+    }
+  }
 }
 
 async function addTask(text) {
@@ -368,10 +510,7 @@ async function removeTask(taskId) {
 }
 
 async function skipBreak() {
-  if (state.phase !== PHASE.RESTING) {
-    return;
-  }
-  await beginPaintOut();
+  await endBreakAndResumeFocus();
 }
 
 async function handlePhaseEnd() {
@@ -384,8 +523,8 @@ async function handlePhaseEnd() {
     return;
   }
 
-  if (state.phase === PHASE.RESTING) {
-    await beginPaintOut();
+  if (state.phase === PHASE.RESTING || state.phase === PHASE.PAINTING_OUT) {
+    await endBreakAndResumeFocus();
   }
 }
 
@@ -394,9 +533,18 @@ async function handlePaintInDone() {
 }
 
 async function handlePaintOutDone() {
+  await clearPaintOutWatchdog();
+  // Focus already resumed when the break ended; ignore late overlay messages.
+  if (state.phase === PHASE.PAINTING_OUT) {
+    await startFocus();
+  }
+}
+
+async function handlePaintOutWatchdog() {
   if (state.phase !== PHASE.PAINTING_OUT) {
     return;
   }
+  console.warn('[BlackHistoryPomodoro] Paint-out watchdog fired; forcing return to focus');
   await startFocus();
 }
 
@@ -405,13 +553,8 @@ async function handleBreakTimerExpired() {
     return;
   }
 
-  if (state.phase === PHASE.RESTING) {
-    await beginPaintOut();
-    return;
-  }
-
-  if (state.phase === PHASE.PAINTING_OUT) {
-    await sendOverlayCommand('PAINT_OUT');
+  if (state.phase === PHASE.RESTING || state.phase === PHASE.PAINTING_OUT) {
+    await endBreakAndResumeFocus();
   }
 }
 
@@ -436,6 +579,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM.PHASE_END) {
     await loadState();
     await handlePhaseEnd();
+    return;
+  }
+  if (alarm.name === ALARM.PAINT_OUT_WATCHDOG) {
+    await loadState();
+    await handlePaintOutWatchdog();
   }
 });
 
@@ -443,7 +591,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   handleMessage(message)
     .then(sendResponse)
     .catch((error) => {
-      console.error('[PaintPomodoro]', error);
+      console.error('[BlackHistoryPomodoro]', error);
       sendResponse({ ok: false, error: error.message });
     });
   return true;
@@ -454,11 +602,12 @@ async function handleMessage(message) {
 
   switch (message.type) {
     case MESSAGE.GET_STATE:
-      ensureDailyArtwork()
-        .then(() => broadcastState())
-        .catch((error) => {
-          console.warn('[PaintPomodoro] Failed to load daily artwork', error);
-        });
+      try {
+        await ensureDailyArtwork(getDiscoveryPeriods());
+      } catch (error) {
+        console.warn('[BlackHistoryPomodoro] Failed to load daily artwork', error);
+        // ensureDailyArtwork persists discoveryError for the popup.
+      }
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.START_FOCUS:
@@ -483,6 +632,10 @@ async function handleMessage(message) {
 
     case MESSAGE.SKIP_BREAK:
       await skipBreak();
+      return { ok: true, state: await getPublicState() };
+
+    case MESSAGE.UPDATE_SETTINGS:
+      await updateSettings(message.settings ?? message);
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.ADD_TASK:
@@ -515,10 +668,23 @@ async function handleMessage(message) {
 
     case MESSAGE.CANVAS_SAVED:
       if (message.dataUrl && pendingBreakNumber != null) {
-        await saveDailyCanvas(message.dataUrl, pendingBreakNumber);
+        const breakNumber = pendingBreakNumber;
         pendingBreakNumber = null;
+        await saveDailyCanvas(message.dataUrl, breakNumber, getDiscoveryPeriods());
         await broadcastState();
+      } else if (message.dataUrl) {
+        // Break already credited (skip / paint-out); still keep the latest canvas snapshot.
+        const art = await loadDailyArt();
+        const breakNumber = art.totalBreakCount ?? art.breakCount ?? 0;
+        if (breakNumber > 0) {
+          await saveDailyCanvas(message.dataUrl, breakNumber, getDiscoveryPeriods());
+          await broadcastState();
+        }
       }
+      return { ok: true, state: await getPublicState() };
+
+    case MESSAGE.CHECKPOINT_DONE:
+      // Consumed by waitForCanvasCheckpoint listeners; acknowledge for sendResponse.
       return { ok: true, state: await getPublicState() };
 
     case MESSAGE.PAINT_IN_DONE:
@@ -555,10 +721,10 @@ async function startup() {
   await ensureDailyArtReset();
 
   try {
-    await ensureDailyArtwork();
+    await ensureDailyArtwork(getDiscoveryPeriods());
     await broadcastState();
   } catch (error) {
-    console.warn('[PaintPomodoro] Failed to prefetch daily artwork', error);
+    console.warn('[BlackHistoryPomodoro] Failed to prefetch daily artwork', error);
   }
 
   await syncPhaseTimer();
@@ -568,7 +734,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   try {
     await bootServiceWorker();
   } catch (error) {
-    console.warn('[PaintPomodoro] Failed to boot service worker on install', error);
+    console.warn('[BlackHistoryPomodoro] Failed to boot service worker on install', error);
   }
 
   if (state.phase === PHASE.RESTING) {
@@ -577,12 +743,8 @@ chrome.runtime.onInstalled.addListener(async () => {
       breakDurationMs: state.settings.breakMinutes * 60 * 1000,
     });
   }
-  if (state.phase === PHASE.PAINTING_OUT) {
-    await showOverlayOnAllTabs();
-    await sendOverlayCommand('PAINT_OUT');
-  }
 });
 
 bootServiceWorker().catch((error) => {
-  console.warn('[PaintPomodoro] Failed to boot service worker', error);
+  console.warn('[BlackHistoryPomodoro] Failed to boot service worker', error);
 });

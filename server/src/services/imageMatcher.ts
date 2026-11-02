@@ -104,7 +104,7 @@ export class ImageMatcher {
         license: 'Project asset',
         licenseUrl: null,
         licenseKind: 'project-asset',
-        credit: 'Black History Pomodoro',
+        credit: 'The Black History API',
         depictionType: 'generic',
         depictsSubject: false,
         width: 640,

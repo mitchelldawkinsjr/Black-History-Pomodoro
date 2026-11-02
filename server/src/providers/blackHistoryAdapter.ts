@@ -101,8 +101,18 @@ export function normalizeFactRecord(item: unknown): NormalizedFact | null {
   const providerFactId =
     sanitizeId(pick(item, ['_id', 'id', 'factId', 'uuid'])) ??
     `h${createHash('sha256').update(factText).digest('hex').slice(0, 24)}`;
-  const people = stringList(pick(item, ['people', 'related_people', 'person', 'persons']), ['name', 'full_name', 'title']);
-  const tags = stringList(pick(item, ['tags', 'tag', 'categories', 'category']), ['name', 'title', 'label']);
+  // Upstream v2 uses related_people/tags as `{ type, value }` objects (not name/title).
+  let people = stringList(
+    pick(item, ['people', 'related_people', 'relatedPeople', 'person', 'persons']),
+    ['value', 'name', 'full_name', 'title', 'label'],
+  );
+  if (people.length === 0) {
+    people = inferPeopleFromText(factText);
+  }
+  const tags = stringList(
+    pick(item, ['tags', 'tag', 'categories', 'category']),
+    ['value', 'name', 'title', 'label'],
+  );
   const eventDate = clean(pick(item, ['date_of_event', 'eventDate', 'dateOfEvent', 'date', 'event_date']));
   const parsedSource = parseSource(item);
 
@@ -115,6 +125,23 @@ export function normalizeFactRecord(item: unknown): NormalizedFact | null {
     source: parsedSource ?? { label: UPSTREAM_PROVIDER_LABEL, url: null, providerUrl: null },
     sourceMissing: parsedSource === null,
   };
+}
+
+/**
+ * Best-effort subject when upstream omits related_people.
+ * Only accepts a leading multi-word proper name (e.g. "Langston Hughes was…").
+ */
+export function inferPeopleFromText(text: string): string[] {
+  const trimmed = text.trim();
+  const match = trimmed.match(
+    /^([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,3})\b/,
+  );
+  if (!match?.[1]) return [];
+  const name = match[1].trim();
+  if (/^(In|On|At|The|A|An|During|After|Before|When|While|From|For|By)\b/.test(name)) {
+    return [];
+  }
+  return [name];
 }
 
 function extractItems(payload: unknown): unknown[] {

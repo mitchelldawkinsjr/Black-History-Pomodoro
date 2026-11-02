@@ -7,24 +7,50 @@ import {
 const phaseLabelEl = document.getElementById('phase-label');
 const timerEl = document.getElementById('timer');
 const timerHintEl = document.getElementById('timer-hint');
+const durationSettingsEl = document.getElementById('duration-settings');
+const focusMinutesEl = document.getElementById('focus-minutes');
+const breakMinutesEl = document.getElementById('break-minutes');
+const discoveryPeriodsEl = document.getElementById('discovery-periods');
 const btnPrimary = document.getElementById('btn-primary');
 const btnSecondary = document.getElementById('btn-secondary');
 const btnActivate = document.getElementById('btn-activate');
 const controlsSecondaryEl = document.getElementById('controls-secondary');
-const artworkProgressEl = document.getElementById('artwork-progress');
-const artworkTitleEl = document.getElementById('artwork-title');
-const artworkCluesEl = document.getElementById('artwork-clues');
-const artworkBadgeEl = document.getElementById('artwork-badge');
-const artworkToggleEl = document.getElementById('artwork-toggle');
-const artworkBodyEl = document.getElementById('artwork-body');
+const discoveryProgressEl = document.getElementById('discovery-progress');
+const discoveryTitleEl = document.getElementById('discovery-title');
+const discoveryFactEl = document.getElementById('discovery-fact');
+const discoveryCluesEl = document.getElementById('discovery-clues');
+const discoveryBadgeEl = document.getElementById('discovery-badge');
+const discoveryToggleEl = document.getElementById('discovery-toggle');
+const discoveryBodyEl = document.getElementById('discovery-body');
 const taskFormEl = document.getElementById('task-form');
 const taskInputEl = document.getElementById('task-input');
 const taskListEl = document.getElementById('task-list');
 const taskBadgeEl = document.getElementById('task-badge');
 
+const FOCUS_MIN = 1;
+const FOCUS_MAX = 180;
+const BREAK_MIN = 1;
+const BREAK_MAX = 60;
+const PERIODS_MIN = 3;
+const PERIODS_MAX = 20;
+
 let currentState = null;
 let tickInterval = null;
-let artworkExpanded = true;
+let discoveryExpanded = true;
+let settingsSaveTimer = null;
+
+function clampMinutes(value, min, max, fallback) {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, n));
+}
+
+function settingsEditable(_state) {
+  // Durations can always be changed; an active session keeps its current remaining time.
+  return true;
+}
 
 function formatTime(ms) {
   const totalSeconds = Math.ceil(ms / 1000);
@@ -53,62 +79,109 @@ function getDisplayRemainingMs(state) {
   return Math.max(0, durationMs - elapsed);
 }
 
-function renderDailyArt(state) {
+function renderDailyDiscovery(state) {
   const daily = state.dailyArt ?? { breakCount: 0, totalBreakCount: 0, maxBreaks: 10 };
   const display = daily.artworkDisplay ?? {
-    headline: daily.artworkReady ? 'Today\'s painting' : 'Loading today\'s painting…',
+    headline: daily.artworkReady ? 'Today\'s discovery' : 'Loading today\'s discovery…',
     latestClue: null,
     titleUnlocked: false,
   };
 
   const totalBreakCount = daily.totalBreakCount ?? daily.breakCount ?? 0;
+  const maxBreaks = daily.maxBreaks ?? 10;
   const currentBreak = state.phase === PHASE.RESTING ? totalBreakCount + 1 : totalBreakCount;
   if (currentBreak > 0) {
-    artworkProgressEl.textContent = `Break ${currentBreak}`;
-    artworkProgressEl.hidden = false;
+    discoveryProgressEl.textContent = `Discovery ${Math.min(currentBreak, maxBreaks)}/${maxBreaks}`;
+    discoveryProgressEl.hidden = false;
+  } else if (daily.artworkReady) {
+    discoveryProgressEl.textContent = `Ready · ${maxBreaks} clues`;
+    discoveryProgressEl.hidden = false;
   } else {
-    artworkProgressEl.hidden = true;
+    discoveryProgressEl.hidden = true;
   }
 
-  artworkTitleEl.textContent = display.headline;
+  if (daily.discoveryError && !daily.artworkReady) {
+    discoveryTitleEl.textContent = 'Couldn’t load today’s discovery';
+  } else if (daily.discoveryLoading && !daily.artworkReady) {
+    discoveryTitleEl.textContent = 'Loading today’s discovery…';
+  } else {
+    discoveryTitleEl.textContent = display.headline;
+  }
 
-  artworkCluesEl.replaceChildren();
-  if (display.clues?.length) {
-    artworkCluesEl.hidden = false;
-    for (const clue of display.clues) {
+  const factClues = (display.clues ?? []).filter(
+    (clue) => clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt',
+  );
+  const metaClues = (display.clues ?? []).filter(
+    (clue) => !(clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt'),
+  );
+  const factText = display.factText
+    || (factClues.length ? factClues[factClues.length - 1].value : '');
+
+  if (discoveryFactEl) {
+    if (factText) {
+      discoveryFactEl.hidden = false;
+      discoveryFactEl.textContent = factText;
+      discoveryFactEl.classList.toggle('is-complete', Boolean(display.factComplete));
+    } else {
+      discoveryFactEl.hidden = true;
+      discoveryFactEl.textContent = '';
+      discoveryFactEl.classList.remove('is-complete');
+    }
+  }
+
+  discoveryCluesEl.replaceChildren();
+  if (metaClues.length) {
+    discoveryCluesEl.hidden = false;
+    for (const clue of metaClues) {
       const entry = document.createElement('div');
-      entry.className = 'artwork-clue-entry';
+      entry.className = 'discovery-clue-entry';
 
       const label = document.createElement('span');
-      label.className = 'artwork-clue-label';
+      label.className = 'discovery-clue-label';
       label.textContent = clue.label;
 
       const value = document.createElement('p');
-      value.className = 'artwork-clue-value';
+      value.className = 'discovery-clue-value';
       value.textContent = clue.value;
 
       entry.append(label, value);
 
       if (clue.detail && clue.detail !== clue.value) {
         const detail = document.createElement('p');
-        detail.className = 'artwork-clue-detail';
+        detail.className = 'discovery-clue-detail';
         detail.textContent = clue.detail;
         entry.appendChild(detail);
       }
 
-      artworkCluesEl.appendChild(entry);
+      discoveryCluesEl.appendChild(entry);
     }
-  } else if (daily.breakCount === 0 && daily.artworkReady) {
-    artworkCluesEl.hidden = false;
+  } else if (daily.discoveryError && !daily.artworkReady) {
+    discoveryCluesEl.hidden = false;
     const hint = document.createElement('p');
-    hint.className = 'artwork-clue-empty';
-    hint.textContent = 'Take a break to start revealing it.';
-    artworkCluesEl.appendChild(hint);
+    hint.className = 'discovery-clue-empty';
+    hint.textContent = daily.discoveryError;
+    discoveryCluesEl.appendChild(hint);
+  } else if (daily.breakCount === 0 && daily.artworkReady) {
+    discoveryCluesEl.hidden = false;
+    const hint = document.createElement('p');
+    hint.className = 'discovery-clue-empty';
+    hint.textContent = 'Finish a focus session to start uncovering the fact.';
+    discoveryCluesEl.appendChild(hint);
+  } else if (!daily.artworkReady) {
+    discoveryCluesEl.hidden = false;
+    const hint = document.createElement('p');
+    hint.className = 'discovery-clue-empty';
+    hint.textContent = 'Fetching a sourced Black history fact…';
+    discoveryCluesEl.appendChild(hint);
   } else {
-    artworkCluesEl.hidden = true;
+    discoveryCluesEl.hidden = true;
   }
 
-  artworkBadgeEl.textContent = display.titleUnlocked ? 'Revealed' : 'The Met';
+  discoveryBadgeEl.textContent = display.factComplete
+    ? 'Revealed'
+    : daily.artworkReady
+      ? 'Ready'
+      : 'Black History';
 }
 
 function renderTasks(state) {
@@ -172,30 +245,113 @@ function renderTasks(state) {
   }
 }
 
-function setArtworkExpanded(expanded) {
-  artworkExpanded = expanded;
-  artworkToggleEl.setAttribute('aria-expanded', String(expanded));
-  artworkBodyEl.hidden = !expanded;
-  artworkToggleEl.classList.toggle('is-collapsed', !expanded);
+function setDiscoveryExpanded(expanded) {
+  discoveryExpanded = expanded;
+  discoveryToggleEl.setAttribute('aria-expanded', String(expanded));
+  discoveryBodyEl.hidden = !expanded;
+  discoveryToggleEl.classList.toggle('is-collapsed', !expanded);
 }
 
-artworkToggleEl.addEventListener('click', () => {
-  setArtworkExpanded(!artworkExpanded);
+discoveryToggleEl.addEventListener('click', () => {
+  setDiscoveryExpanded(!discoveryExpanded);
 });
+
+function renderDurationSettings(state) {
+  const settings = state.settings ?? {};
+  const editable = settingsEditable(state);
+  const focusValue = clampMinutes(
+    settings.focusMinutes,
+    FOCUS_MIN,
+    FOCUS_MAX,
+    25,
+  );
+  const breakValue = clampMinutes(
+    settings.breakMinutes,
+    BREAK_MIN,
+    BREAK_MAX,
+    5,
+  );
+  const periodsValue = clampMinutes(
+    settings.discoveryPeriods,
+    PERIODS_MIN,
+    PERIODS_MAX,
+    10,
+  );
+
+  if (document.activeElement !== focusMinutesEl) {
+    focusMinutesEl.value = String(focusValue);
+  }
+  if (document.activeElement !== breakMinutesEl) {
+    breakMinutesEl.value = String(breakValue);
+  }
+  if (document.activeElement !== discoveryPeriodsEl) {
+    discoveryPeriodsEl.value = String(periodsValue);
+  }
+
+  focusMinutesEl.disabled = !editable;
+  breakMinutesEl.disabled = !editable;
+  discoveryPeriodsEl.disabled = !editable;
+  durationSettingsEl.classList.toggle('is-locked', !editable);
+  for (const button of durationSettingsEl.querySelectorAll('.duration-step')) {
+    button.disabled = !editable;
+  }
+}
+
+function queueDurationSettings(partial) {
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = setTimeout(() => {
+    sendMessage(MESSAGE.UPDATE_SETTINGS, { settings: partial });
+  }, 200);
+}
+
+function readSettingsFromInputs() {
+  return {
+    focusMinutes: clampMinutes(
+      focusMinutesEl.value,
+      FOCUS_MIN,
+      FOCUS_MAX,
+      currentState?.settings?.focusMinutes ?? 25,
+    ),
+    breakMinutes: clampMinutes(
+      breakMinutesEl.value,
+      BREAK_MIN,
+      BREAK_MAX,
+      currentState?.settings?.breakMinutes ?? 5,
+    ),
+    discoveryPeriods: clampMinutes(
+      discoveryPeriodsEl.value,
+      PERIODS_MIN,
+      PERIODS_MAX,
+      currentState?.settings?.discoveryPeriods ?? 10,
+    ),
+  };
+}
+
+function commitDurationInputs() {
+  if (!currentState || !settingsEditable(currentState)) {
+    return;
+  }
+  const next = readSettingsFromInputs();
+  focusMinutesEl.value = String(next.focusMinutes);
+  breakMinutesEl.value = String(next.breakMinutes);
+  discoveryPeriodsEl.value = String(next.discoveryPeriods);
+  queueDurationSettings(next);
+}
 
 function renderPhaseControls(state, isPaused) {
   controlsSecondaryEl.hidden = true;
   btnActivate.hidden = true;
 
   if (state.phase === PHASE.IDLE) {
-    timerHintEl.textContent = "Start a focus session when you're ready.";
+    timerHintEl.textContent = 'Adjust focus, break, and periods below, then start.';
     btnPrimary.textContent = 'Start focus';
     btnPrimary.dataset.action = 'start';
     return;
   }
 
   if (state.phase === PHASE.PAINTING_OUT) {
-    timerHintEl.textContent = 'Returning to your screen…';
+    // Transitional only — next focus starts automatically; no Continue needed.
+    timerHintEl.textContent = 'Starting next focus session…';
     btnPrimary.hidden = true;
     return;
   }
@@ -205,11 +361,11 @@ function renderPhaseControls(state, isPaused) {
     btnPrimary.textContent = 'Resume';
     btnPrimary.dataset.action = 'resume';
   } else if (state.phase === PHASE.FOCUSING) {
-    timerHintEl.textContent = 'Stay focused — paint is waiting.';
+    timerHintEl.textContent = 'Stay focused — a discovery is waiting.';
     btnPrimary.textContent = 'Pause';
     btnPrimary.dataset.action = 'pause';
   } else if (state.phase === PHASE.RESTING) {
-    timerHintEl.textContent = 'Break — today\'s painting is revealing.';
+    timerHintEl.textContent = 'Break — today\'s discovery is revealing.';
     btnPrimary.textContent = 'Pause';
     btnPrimary.dataset.action = 'pause';
   }
@@ -238,7 +394,8 @@ function render(state) {
 
   btnPrimary.hidden = false;
   timerEl.textContent = formatTime(remainingMs);
-  renderDailyArt(state);
+  renderDurationSettings(state);
+  renderDailyDiscovery(state);
   renderTasks(state);
 
   btnSecondary.hidden = state.phase === PHASE.IDLE;
@@ -273,6 +430,59 @@ function stopTicking() {
     tickInterval = null;
   }
 }
+
+focusMinutesEl.addEventListener('change', commitDurationInputs);
+breakMinutesEl.addEventListener('change', commitDurationInputs);
+discoveryPeriodsEl.addEventListener('change', commitDurationInputs);
+for (const input of [focusMinutesEl, breakMinutesEl, discoveryPeriodsEl]) {
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitDurationInputs();
+      input.blur();
+    }
+  });
+}
+
+durationSettingsEl.addEventListener('click', (event) => {
+  const button = event.target.closest('.duration-step');
+  if (!button || !currentState || !settingsEditable(currentState)) {
+    return;
+  }
+  const field = button.dataset.field;
+  const delta = Number.parseInt(button.dataset.delta, 10) || 0;
+  const current = readSettingsFromInputs();
+
+  if (field === 'focusMinutes') {
+    current.focusMinutes = clampMinutes(
+      current.focusMinutes + delta,
+      FOCUS_MIN,
+      FOCUS_MAX,
+      25,
+    );
+  } else if (field === 'breakMinutes') {
+    current.breakMinutes = clampMinutes(
+      current.breakMinutes + delta,
+      BREAK_MIN,
+      BREAK_MAX,
+      5,
+    );
+  } else if (field === 'discoveryPeriods') {
+    current.discoveryPeriods = clampMinutes(
+      current.discoveryPeriods + delta,
+      PERIODS_MIN,
+      PERIODS_MAX,
+      10,
+    );
+  } else {
+    return;
+  }
+
+  focusMinutesEl.value = String(current.focusMinutes);
+  breakMinutesEl.value = String(current.breakMinutes);
+  discoveryPeriodsEl.value = String(current.discoveryPeriods);
+  queueDurationSettings(current);
+});
 
 btnPrimary.addEventListener('click', async () => {
   const action = btnPrimary.dataset.action;
@@ -327,7 +537,7 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 async function init() {
-  setArtworkExpanded(true);
+  setDiscoveryExpanded(true);
   const response = await chrome.runtime.sendMessage({ type: MESSAGE.GET_STATE });
   if (response?.ok) {
     render(response.state);

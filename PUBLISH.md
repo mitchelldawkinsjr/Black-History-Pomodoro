@@ -1,9 +1,9 @@
-# Publishing Paint Pomodoro (Unlisted)
+# Publishing Black History Pomodoro (Unlisted)
 
 Use this guide to publish an **Unlisted** Chrome Web Store version and share a private install link with friends.
 
 **Privacy policy URL (after GitHub Pages is enabled):**  
-https://airfan003.github.io/PaintPomodoro/privacy.html
+https://mitchelldawkinsjr.github.io/Black-History-Pomodoro/privacy.html
 
 ---
 
@@ -12,7 +12,7 @@ https://airfan003.github.io/PaintPomodoro/privacy.html
 1. Sign in with a Google account at the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
 2. Accept the developer agreement.
 3. Pay the **one-time $5 USD** registration fee.
-4. Fill in your **Publisher name** (shown on the store listing — e.g. your name or “AirFan003”).
+4. Fill in your **Publisher name** (shown on the store listing).
 
 You only do this once. After approval, you can upload extensions from this dashboard.
 
@@ -26,7 +26,7 @@ You only do this once. After approval, you can upload extensions from this dashb
 - [x] Privacy policy at `privacy.html`
 - [x] Store listing copy below (Step 4)
 - [x] Permission justifications below (Step 5)
-- [x] Met attribution in the overlay HUD
+- [x] Melanin branding + discovery attribution in the overlay HUD
 
 ### You should do before uploading
 
@@ -36,7 +36,7 @@ You only do this once. After approval, you can upload extensions from this dashb
 - [ ] **Take 1–5 screenshots** (1280×800 or 640×400 PNG/JPEG):
   - Popup during focus
   - Fullscreen watercolor break overlay
-  - HUD with painting clues expanded
+  - HUD with discovery clues expanded
   - Optional: popup during break with timer visible
 - [ ] **Build the zip** (see below).
 
@@ -45,15 +45,16 @@ You only do this once. After approval, you can upload extensions from this dashb
 From the project folder:
 
 ```bash
-cd /Users/airla/Desktop/PaintPomodoro
-zip -r paint-pomodoro-1.0.0.zip . \
+cd /Users/mitchelldawkins/Projects/Black-History-Pomodoro
+zip -r black-history-pomodoro-1.0.0.zip . \
   -x "*.git*" \
   -x ".DS_Store" \
   -x "*.zip" \
-  -x "PUBLISH.md"
+  -x "PUBLISH.md" \
+  -x "server/node_modules/*"
 ```
 
-Upload **`paint-pomodoro-1.0.0.zip`** — not the whole folder.
+Upload **`black-history-pomodoro-1.0.0.zip`** — not the whole folder.
 
 ---
 
@@ -61,18 +62,12 @@ Upload **`paint-pomodoro-1.0.0.zip`** — not the whole folder.
 
 Google requires a **public URL** to your privacy policy before you can publish.
 
-1. Commit and push `privacy.html` to GitHub:
-   ```bash
-   git add privacy.html manifest.json popup/popup.html README.md PUBLISH.md
-   git commit -m "Prepare v1.0.0 for Chrome Web Store submission"
-   git push origin main
-   ```
-
-2. On GitHub, open **PaintPomodoro → Settings → Pages**.
+1. Commit and push `privacy.html` to GitHub.
+2. On GitHub, open **Black-History-Pomodoro → Settings → Pages**.
 3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
 4. Branch: **main**, folder: **/ (root)**.
 5. Save. After 1–2 minutes, verify this URL loads:  
-   **https://airfan003.github.io/PaintPomodoro/privacy.html**
+   **https://mitchelldawkinsjr.github.io/Black-History-Pomodoro/privacy.html**
 
 Paste that URL into the Chrome Web Store **Privacy practices** section.
 
@@ -82,30 +77,31 @@ Paste that URL into the Chrome Web Store **Privacy practices** section.
 
 ### Extension name
 ```
-Paint Pomodoro
+Black History Pomodoro
 ```
 
 ### Summary (short description, max 132 characters)
 ```
-A Pomodoro timer that reveals Met Museum paintings in watercolor when you take a break.
+A Pomodoro timer that reveals sourced Black history facts during breaks — focus first, then learn.
 ```
 
 ### Description (detailed)
 ```
-Paint Pomodoro helps you stay focused — then rewards your breaks with art.
+Black History Pomodoro helps you stay focused — then rewards your breaks with history.
 
-When your focus session ends, a fullscreen watercolor overlay gradually reveals a public-domain painting from The Metropolitan Museum of Art. Take a real rest while the painting builds up, read slowly unlocking clues about the artwork, and return to work when the break ends.
+When your focus session ends, a fullscreen watercolor overlay gradually reveals a rights-checked archival image alongside sourced Black history facts. Take a real rest while the image builds up, read clues that unlock break by break, and return to work when the break ends.
 
 Features:
 • Focus and break timer with pause, resume, and skip
 • Watercolor reveal animation powered by generative paint and color-matching agents
-• New painting every 10 breaks, with clues that unlock over time
+• New discovery every 10 breaks, with clues that unlock over time
 • Daily task list in the popup
+• Melanin-inspired visual branding
 • Timer keeps running when the popup is closed
 
-Artworks are sourced from The Met Open Access collection (public domain only). Attribution: Courtesy of The Metropolitan Museum of Art.
+Facts are served by The Black History API. On-screen image credit comes from the matched archival source (for example Wikimedia Commons). Imagery is rights-checked with license shown when available.
 
-Paint Pomodoro stores your timer, tasks, and painting progress locally on your device. No account required.
+Black History Pomodoro stores your timer, tasks, and discovery progress locally on your device. No account required.
 ```
 
 ### Category
@@ -120,12 +116,12 @@ English
 
 ### Single purpose description (for the review form)
 ```
-Helps users take timed Pomodoro breaks by displaying a fullscreen watercolor painting overlay when a break starts.
+Helps users take timed Pomodoro breaks by revealing sourced Black history with a fullscreen watercolor overlay when a break starts.
 ```
 
 ### Support / homepage (optional but recommended)
 ```
-https://github.com/AirFan003/PaintPomodoro
+https://github.com/mitchelldawkinsjr/Black-History-Pomodoro
 ```
 
 ---
@@ -136,33 +132,28 @@ When Google asks why each permission is needed:
 
 | Permission | Justification |
 |------------|---------------|
-| **storage** | Saves Pomodoro timer state, daily tasks, painting progress, and user settings locally on the device. |
+| **storage** | Saves Pomodoro timer state, daily tasks, discovery progress, and user settings locally on the device. |
 | **alarms** | Keeps the focus/break timer accurate when the popup is closed or the browser is in the background. |
 | **tabs** | Finds an active, normal webpage tab where the break overlay can be shown during rest periods. |
 | **scripting** | Injects the overlay content script into the active tab when a break begins. |
-| **Host permission: collectionapi.metmuseum.org** | Fetches public-domain artwork metadata from The Metropolitan Museum of Art Open Access API. |
-| **Host permission: images.metmuseum.org** | Loads public-domain artwork images for the watercolor reveal animation. |
+| **Host permission: blackhistory.360web.cloud** | Fetches sourced historical discoveries and approved media from The Black History API. |
 | **Host permission: &lt;all_urls&gt;** | Displays the fullscreen break overlay on whichever website the user is browsing when a rest break starts. The overlay is only shown during breaks; the extension does not collect or transmit page content. |
 
 ### Data use / Privacy practices (Chrome Web Store form)
 
 - **Does your extension collect user data?** No (or “No personal data collected” — all storage is local).
-- **Privacy policy URL:** `https://airfan003.github.io/PaintPomodoro/privacy.html`
+- **Privacy policy URL:** `https://mitchelldawkinsjr.github.io/Black-History-Pomodoro/privacy.html`
 - **Certify** that the privacy policy is accurate.
 
 ---
 
-## Step 6 — Met Museum compliance
+## Step 6 — Source & attribution
 
 Already implemented in the extension:
 
-- Only artworks with `isPublicDomain === true` are used.
-- The overlay HUD includes: **“Courtesy of The Metropolitan Museum of Art”**.
-- Credit lines and catalog metadata come from The Met’s open API.
-
-In your store description (Step 4), mention that images are from **The Met Open Access** program. No separate API key is required for The Met’s public collection API.
-
-Reference: [The Met Open Access policy](https://www.metmuseum.org/about-the-met/policies-and-documents/open-access)
+- Discoveries come from The Black History API.
+- The overlay HUD attribution is wired to the matched image credit (`visual.credit`).
+- Image title, credit, and license unlock with the final reveal when available.
 
 ---
 
@@ -171,7 +162,7 @@ Reference: [The Met Open Access policy](https://www.metmuseum.org/about-the-met/
 After Steps 1–6 are ready:
 
 1. Open the [Developer Dashboard](https://chrome.google.com/webstore/devconsole).
-2. Click **New item** and upload `paint-pomodoro-1.0.0.zip`.
+2. Click **New item** and upload `black-history-pomodoro-1.0.0.zip`.
 3. Fill in the store listing using Step 4 copy.
 4. Add your **icon** (128×128 — use `assets/icons/icon128.png`).
 5. Upload **screenshots** (at least one required).
@@ -188,13 +179,7 @@ After Steps 1–6 are ready:
 
 ### Share with friends
 
-After approval, open your item in the dashboard. Copy the **Chrome Web Store URL** (looks like):
-
-```
-https://chrome.google.com/webstore/detail/XXXXXXXXXXXX
-```
-
-Send that link to friends. They click **Add to Chrome** — no sideloading or `.zip` install needed.
+After approval, open your item in the dashboard. Copy the **Chrome Web Store URL** and send that link to friends.
 
 ---
 
@@ -215,7 +200,7 @@ Fix the issue, bump version to `1.0.1` in `manifest.json`, rebuild the zip, and 
 | Item | Value |
 |------|--------|
 | Version | 1.0.0 |
-| Privacy policy | https://airfan003.github.io/PaintPomodoro/privacy.html |
-| GitHub | https://github.com/AirFan003/PaintPomodoro |
+| Privacy policy | https://mitchelldawkinsjr.github.io/Black-History-Pomodoro/privacy.html |
+| GitHub | https://github.com/mitchelldawkinsjr/Black-History-Pomodoro |
 | Distribution | Unlisted (private link) |
-| Zip file | `paint-pomodoro-1.0.0.zip` |
+| Zip file | `black-history-pomodoro-1.0.0.zip` |

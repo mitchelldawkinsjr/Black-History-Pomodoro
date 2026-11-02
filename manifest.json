@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Paint Pomodoro",
+  "name": "Black History Pomodoro",
   "version": "1.0.0",
-  "description": "A Pomodoro timer that covers your screen in watercolor when it's time to rest.",
+  "description": "A Pomodoro timer that reveals sourced Black history facts and rights-checked imagery in watercolor across ten earned focus sessions.",
   "icons": {
     "16": "assets/icons/icon16.png",
     "48": "assets/icons/icon48.png",
@@ -15,7 +15,7 @@
       "48": "assets/icons/icon48.png",
       "128": "assets/icons/icon128.png"
     },
-    "default_title": "Paint Pomodoro"
+    "default_title": "Black History Pomodoro"
   },
   "background": {
     "service_worker": "background/service-worker.js",
@@ -23,8 +23,7 @@
   },
   "permissions": ["alarms", "storage", "tabs", "scripting"],
   "host_permissions": [
-    "https://collectionapi.metmuseum.org/*",
-    "https://images.metmuseum.org/*",
+    "https://blackhistory.360web.cloud/*",
     "<all_urls>"
   ],
   "content_scripts": [
@@ -43,7 +42,8 @@
         "overlay/overlay.html",
         "overlay/overlay.js",
         "overlay/overlay.css",
-        "shared/met-theme.css",
+        "shared/theme.css",
+        "shared/config.js",
         "overlay/paint-sketch.js",
         "overlay/watercolor.js",
         "overlay/color-agents.js",

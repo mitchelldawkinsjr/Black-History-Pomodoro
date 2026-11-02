@@ -296,6 +296,14 @@ export class DiscoveryService {
   private async buildDiscovery(fact: NormalizedFact): Promise<HistoricalDiscovery | null> {
     try {
       const match = await this.matcher.match({ text: fact.factText, people: fact.people });
+      // Prefer facts we can illustrate with a verified subject image; keep trying upstream.
+      if (!match.visual.depictsSubject) {
+        this.warn(
+          `discovery ${fact.providerFactId} skipped: no verified subject image` +
+            (fact.people[0] ? ` for ${fact.people[0]}` : ' (no people)'),
+        );
+        return null;
+      }
       const assetId = this.mediaStore.register(match.sourceUrl);
       const candidate: HistoricalDiscovery = {
         id: `${UPSTREAM_ID_PREFIX}${fact.providerFactId}`,

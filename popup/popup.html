@@ -3,24 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paint Pomodoro</title>
+    <title>Black History Pomodoro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Sora:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
+    <div class="melanin-bar" aria-hidden="true"></div>
     <main class="popup">
       <header class="header">
-        <h1 class="title">Paint Pomodoro</h1>
+        <h1 class="title">Black History Pomodoro</h1>
         <p class="phase-label" id="phase-label">Ready</p>
       </header>
 
       <section class="timer-section" aria-live="polite">
-        <div class="timer" id="timer">25:00</div>
+        <div class="timer-ring">
+          <div class="timer" id="timer">25:00</div>
+        </div>
         <p class="timer-hint" id="timer-hint">Start a focus session when you're ready.</p>
       </section>
 
@@ -29,24 +32,25 @@
         <button type="button" class="btn btn-secondary" id="btn-secondary" hidden>Reset</button>
       </section>
 
-      <section class="artwork-section" aria-live="polite">
+      <section class="discovery-section" aria-live="polite">
         <button
           type="button"
-          class="artwork-section-toggle"
-          id="artwork-toggle"
+          class="discovery-section-toggle"
+          id="discovery-toggle"
           aria-expanded="true"
-          aria-controls="artwork-body"
+          aria-controls="discovery-body"
         >
           <div class="section-heading">
-            <h2>Today's painting</h2>
-            <span class="badge" id="artwork-badge">The Met</span>
+            <h2>Today's discovery</h2>
+            <span class="badge" id="discovery-badge">Black History</span>
           </div>
-          <span class="artwork-chevron" aria-hidden="true"></span>
+          <span class="discovery-chevron" aria-hidden="true"></span>
         </button>
-        <div class="artwork-body" id="artwork-body">
-          <p class="artwork-title" id="artwork-title">Loading…</p>
-          <div class="artwork-clues" id="artwork-clues" hidden></div>
-          <p class="artwork-progress" id="artwork-progress" hidden></p>
+        <div class="discovery-body" id="discovery-body">
+          <p class="discovery-title" id="discovery-title">Loading…</p>
+          <p class="discovery-fact" id="discovery-fact" hidden></p>
+          <div class="discovery-clues" id="discovery-clues" hidden></div>
+          <p class="discovery-progress" id="discovery-progress" hidden></p>
         </div>
       </section>
 
@@ -73,8 +77,70 @@
         <ul class="task-list" id="task-list"></ul>
       </section>
 
+      <section class="session-settings" aria-label="Session settings">
+        <div class="duration-settings" id="duration-settings">
+          <label class="duration-field">
+            <span class="duration-label">Focus</span>
+            <span class="duration-control">
+              <button type="button" class="duration-step" data-field="focusMinutes" data-delta="-1" aria-label="Decrease focus minutes">−</button>
+              <input
+                type="number"
+                class="duration-input"
+                id="focus-minutes"
+                name="focusMinutes"
+                min="1"
+                max="180"
+                step="1"
+                inputmode="numeric"
+                aria-label="Focus minutes"
+              />
+              <button type="button" class="duration-step" data-field="focusMinutes" data-delta="1" aria-label="Increase focus minutes">+</button>
+            </span>
+            <span class="duration-unit">min</span>
+          </label>
+          <label class="duration-field">
+            <span class="duration-label">Break</span>
+            <span class="duration-control">
+              <button type="button" class="duration-step" data-field="breakMinutes" data-delta="-1" aria-label="Decrease break minutes">−</button>
+              <input
+                type="number"
+                class="duration-input"
+                id="break-minutes"
+                name="breakMinutes"
+                min="1"
+                max="60"
+                step="1"
+                inputmode="numeric"
+                aria-label="Break minutes"
+              />
+              <button type="button" class="duration-step" data-field="breakMinutes" data-delta="1" aria-label="Increase break minutes">+</button>
+            </span>
+            <span class="duration-unit">min</span>
+          </label>
+          <label class="duration-field">
+            <span class="duration-label">Periods</span>
+            <span class="duration-control">
+              <button type="button" class="duration-step" data-field="discoveryPeriods" data-delta="-1" aria-label="Decrease discovery periods">−</button>
+              <input
+                type="number"
+                class="duration-input"
+                id="discovery-periods"
+                name="discoveryPeriods"
+                min="3"
+                max="20"
+                step="1"
+                inputmode="numeric"
+                aria-label="Discovery periods"
+              />
+              <button type="button" class="duration-step" data-field="discoveryPeriods" data-delta="1" aria-label="Increase discovery periods">+</button>
+            </span>
+            <span class="duration-unit">breaks</span>
+          </label>
+        </div>
+      </section>
+
       <footer class="footer">
-        <span class="version">v1.0.0</span>
+        <span class="version">Black History Pomodoro · v1.0.0</span>
       </footer>
     </main>
 

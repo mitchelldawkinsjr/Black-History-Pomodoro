@@ -5,6 +5,11 @@ const revealHud = document.getElementById('reveal-hud');
 const revealHudToggle = document.getElementById('reveal-hud-toggle');
 const revealHudBody = document.getElementById('reveal-hud-body');
 const revealProgress = document.getElementById('reveal-progress');
+const revealHeadline = document.getElementById('reveal-headline');
+const revealSubtitle = document.getElementById('reveal-subtitle');
+const revealFact = document.getElementById('reveal-fact');
+const revealAttribution = document.getElementById('reveal-attribution')
+  || document.querySelector('.reveal-attribution');
 const revealClues = document.getElementById('reveal-clues');
 const revealTimer = document.getElementById('reveal-timer');
 
@@ -14,6 +19,36 @@ let breakTimerRemainingMs = null;
 let hudInterval = null;
 let hudExpanded = true;
 let breakTimerExpired = false;
+let paintOutFailsafeTimer = null;
+let paintOutCompletionSent = false;
+
+function clearPaintOutFailsafe() {
+  if (paintOutFailsafeTimer) {
+    clearTimeout(paintOutFailsafeTimer);
+    paintOutFailsafeTimer = null;
+  }
+}
+
+function completePaintOut() {
+  if (paintOutCompletionSent) {
+    return;
+  }
+  paintOutCompletionSent = true;
+  clearPaintOutFailsafe();
+  setOverlayFade(0);
+  hideRevealHud();
+  requestOverlayHide();
+  chrome.runtime.sendMessage({ type: 'PAINT_OUT_DONE' }).catch(() => {});
+}
+
+function armPaintOutFailsafe() {
+  clearPaintOutFailsafe();
+  paintOutCompletionSent = false;
+  // Paint-out animation is ~4.2s; force completion if the sketch loop stalls.
+  paintOutFailsafeTimer = setTimeout(() => {
+    completePaintOut();
+  }, 7000);
+}
 
 const sketch = createPaintSketch(container, {
   onPaintInComplete: async (dataUrl) => {
@@ -26,10 +61,7 @@ const sketch = createPaintSketch(container, {
     setOverlayFade(opacity);
   },
   onPaintOutComplete: () => {
-    setOverlayFade(0);
-    hideRevealHud();
-    requestOverlayHide();
-    chrome.runtime.sendMessage({ type: 'PAINT_OUT_DONE' }).catch(() => {});
+    completePaintOut();
   },
   onReady: () => {
     signalReady();
@@ -42,14 +74,14 @@ function getApi() {
 
 function signalReady() {
   window.parent.postMessage(
-    { source: 'paint-pomodoro', event: 'READY' },
+    { source: 'black-history-pomodoro', event: 'READY' },
     '*',
   );
 }
 
 function requestOverlayHide() {
   window.parent.postMessage(
-    { source: 'paint-pomodoro', event: 'HIDE' },
+    { source: 'black-history-pomodoro', event: 'HIDE' },
     '*',
   );
 }
@@ -58,7 +90,7 @@ function setOverlayFade(opacity) {
   const clamped = Math.max(0, Math.min(1, opacity));
   revealHud.style.opacity = String(clamped);
   window.parent.postMessage(
-    { source: 'paint-pomodoro', event: 'FADE', opacity: clamped },
+    { source: 'black-history-pomodoro', event: 'FADE', opacity: clamped },
     '*',
   );
 }
@@ -75,21 +107,30 @@ function notifyBreakTimerExpired() {
     return;
   }
   breakTimerExpired = true;
+  // Service worker ends the break, checkpoints canvas, and starts the next focus.
+  // Do not start a local paint-out here — that races the checkpoint/RESET path.
   chrome.runtime.sendMessage({ type: 'BREAK_TIMER_EXPIRED' }).catch(() => {});
-  startLocalPaintOut();
 }
 
 async function startLocalPaintOut() {
   const api = await waitForApi();
   if (!api) {
+    completePaintOut();
     return;
   }
 
   const mode = api.getMode?.();
-  if (mode === 'resting' || mode === 'paintIn') {
-    setOverlayFade(1);
-    api.startPaintOut();
+  if (mode === 'paintOut') {
+    return;
   }
+  if (mode === 'idle') {
+    completePaintOut();
+    return;
+  }
+
+  setOverlayFade(1);
+  armPaintOutFailsafe();
+  api.startPaintOut();
 }
 
 function pauseBreakTimer() {
@@ -143,18 +184,29 @@ revealHudToggle.addEventListener('click', () => {
   setHudExpanded(!hudExpanded);
 });
 
+function latestFactText(unlockedClues = []) {
+  const facts = unlockedClues.filter(
+    (clue) => clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt',
+  );
+  return facts.length ? facts[facts.length - 1].value : '';
+}
+
 function renderRevealClues(unlockedClues, currentBreak, paintingBreakNumber = currentBreak) {
   revealClues.replaceChildren();
 
-  if (!unlockedClues?.length) {
+  const metaClues = (unlockedClues ?? []).filter(
+    (clue) => !(clue.kind === 'fact' || clue.label === 'Fact' || clue.label === 'Excerpt'),
+  );
+
+  if (!metaClues.length && !latestFactText(unlockedClues)) {
     const placeholder = document.createElement('p');
     placeholder.className = 'reveal-clue-placeholder';
-    placeholder.textContent = 'More about this painting will appear with each break.';
+    placeholder.textContent = 'Complete a focus session to unlock the first Black history clue.';
     revealClues.appendChild(placeholder);
     return;
   }
 
-  for (const clue of unlockedClues) {
+  for (const clue of metaClues) {
     const entry = document.createElement('article');
     entry.className = 'reveal-clue-entry';
     if (clue.breakNumber === paintingBreakNumber) {
@@ -190,13 +242,35 @@ function renderRevealClues(unlockedClues, currentBreak, paintingBreakNumber = cu
 function showRevealHud(payload = {}) {
   const reveal = payload.breakReveal ?? {};
   const breakNumber = reveal.breakNumber ?? payload.breakNumber ?? 1;
+  const paintingBreakNumber = reveal.paintingBreakNumber ?? breakNumber;
+  const unlocked = reveal.unlockedClues ?? [];
+  const factText = latestFactText(unlocked);
 
-  revealProgress.textContent = reveal.progressLabel ?? `Break ${breakNumber}`;
-  renderRevealClues(
-    reveal.unlockedClues ?? [],
-    breakNumber,
-    reveal.paintingBreakNumber ?? breakNumber,
-  );
+  revealProgress.textContent = reveal.progressLabel ?? `Discovery ${paintingBreakNumber}/10`;
+  if (revealHeadline) {
+    revealHeadline.textContent = reveal.headline ?? 'Black history discovery';
+  }
+  if (revealSubtitle) {
+    revealSubtitle.textContent =
+      paintingBreakNumber >= 10
+        ? 'Full Black history fact revealed'
+        : 'Black history facts unlock as you earn focus sessions';
+  }
+  if (revealFact) {
+    if (factText) {
+      revealFact.hidden = false;
+      revealFact.textContent = factText;
+      revealFact.classList.toggle('is-complete', paintingBreakNumber >= 10);
+    } else {
+      revealFact.hidden = true;
+      revealFact.textContent = '';
+      revealFact.classList.remove('is-complete');
+    }
+  }
+  if (revealAttribution && reveal.attribution) {
+    revealAttribution.textContent = reveal.attribution;
+  }
+  renderRevealClues(unlocked, breakNumber, paintingBreakNumber);
   setHudExpanded(true);
 
   breakEndAt = Date.now() + (payload.breakDurationMs ?? 5 * 60 * 1000);
@@ -227,6 +301,13 @@ function hideRevealHud() {
   }
 }
 
+function hardResetOverlay() {
+  clearPaintOutFailsafe();
+  paintOutCompletionSent = false;
+  hideRevealHud();
+  setOverlayFade(1);
+}
+
 async function waitForApi(maxAttempts = 120) {
   for (let i = 0; i < maxAttempts; i += 1) {
     const api = getApi();
@@ -241,7 +322,7 @@ async function waitForApi(maxAttempts = 120) {
 async function startBreakPaint(payload = {}) {
   const api = await waitForApi();
   if (!api) {
-    console.error('[PaintPomodoro overlay] Sketch API not ready');
+    console.error('[BlackHistoryPomodoro overlay] Sketch API not ready');
     return;
   }
 
@@ -261,7 +342,7 @@ async function startBreakPaint(payload = {}) {
 async function handleCommand(command, payload = {}) {
   const api = await waitForApi();
   if (!api) {
-    console.error('[PaintPomodoro overlay] Sketch API not ready');
+    console.error('[BlackHistoryPomodoro overlay] Sketch API not ready');
     return;
   }
 
@@ -276,10 +357,20 @@ async function handleCommand(command, payload = {}) {
     case 'PAINT_IN':
       await startBreakPaint(payload);
       break;
-    case 'PAINT_OUT':
+    case 'PAINT_OUT': {
+      const mode = api.getMode?.();
+      if (mode === 'paintOut') {
+        break;
+      }
+      if (mode === 'idle') {
+        completePaintOut();
+        break;
+      }
       setOverlayFade(1);
+      armPaintOutFailsafe();
       api.startPaintOut();
       break;
+    }
     case 'PAUSE':
       api.pause();
       pauseBreakTimer();
@@ -288,7 +379,16 @@ async function handleCommand(command, payload = {}) {
       api.resume();
       resumeBreakTimer();
       break;
+    case 'CHECKPOINT': {
+      const dataUrl = api.checkpointProgress?.() ?? null;
+      chrome.runtime
+        .sendMessage({ type: 'CHECKPOINT_DONE', dataUrl })
+        .catch(() => {});
+      break;
+    }
     case 'RESET':
+      clearPaintOutFailsafe();
+      paintOutCompletionSent = false;
       hideRevealHud();
       api.reset();
       break;
@@ -298,7 +398,7 @@ async function handleCommand(command, payload = {}) {
 }
 
 window.addEventListener('message', (event) => {
-  if (event.data?.source !== 'paint-pomodoro') {
+  if (event.data?.source !== 'black-history-pomodoro') {
     return;
   }
   handleCommand(event.data.command, event.data);

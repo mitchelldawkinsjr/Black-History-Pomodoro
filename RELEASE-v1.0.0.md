@@ -1,8 +1,8 @@
-# Paint Pomodoro v1.0.0
+# Black History Pomodoro v1.0.0
 
-**A Pomodoro timer that turns your break into a slow reveal of a masterpiece.**
+**A Pomodoro timer that turns your break into a slow reveal of Black history.**
 
-When your focus session ends, Paint Pomodoro covers the screen in watercolor and gradually uncovers a public-domain painting from The Metropolitan Museum of Art. Rest while the image builds up, read clues that unlock break by break, and fade back to work when you’re ready.
+When your focus session ends, Black History Pomodoro covers the screen in watercolor and gradually uncovers a rights-checked archival image alongside sourced facts. Rest while the image builds up, read clues that unlock break by break, and fade back to work when you’re ready.
 
 This is an early **beta release** shared directly via GitHub while the Chrome Web Store listing is in review.
 
@@ -12,12 +12,13 @@ This is an early **beta release** shared directly via GitHub while the Chrome We
 
 - **Focus timer** — default 25-minute sessions; keeps running when the popup is closed
 - **Watercolor break overlay** — fullscreen paint reveal on whatever site you’re browsing
-- **Art from The Met** — public-domain paintings only, with on-screen attribution
-- **Clues over time** — department, medium, artist, title, and more unlock across breaks
-- **New painting every 10 breaks** — your break counter keeps going (Break 11, 12, …)
+- **Sourced Black history** — facts and rights-checked imagery with on-screen credit
+- **Clues over time** — theme, date, people, and full fact unlock across breaks
+- **New discovery every 10 breaks** — your break counter keeps going (Break 11, 12, …)
 - **Pause & resume** — during both focus and break
 - **Start break early** or **skip break** when you need to
 - **Daily task list** — lightweight to-do list in the popup
+- **Melanin branding** — skin-tone palette across the popup, overlay, and icons
 
 ---
 
@@ -27,13 +28,13 @@ This is an early **beta release** shared directly via GitHub while the Chrome We
 
 ### Quick steps
 
-1. Download **`paint-pomodoro-1.0.0.zip`** from the Assets section below.
+1. Download the release zip from the Assets section below.
 2. **Unzip** it.
 3. Open **`chrome://extensions`** → enable **Developer mode**.
 4. Click **Load unpacked** → select the unzipped folder (the one with `manifest.json` inside).
-5. Pin **Paint Pomodoro** from the extensions menu and click **Start focus**.
+5. Pin **Black History Pomodoro** from the extensions menu and click **Start focus**.
 
-Detailed instructions, troubleshooting, and update steps: **[INSTALL.md](https://github.com/AirFan003/PaintPomodoro/blob/main/INSTALL.md)**
+Detailed instructions, troubleshooting, and update steps: **[INSTALL.md](https://github.com/mitchelldawkinsjr/Black-History-Pomodoro/blob/main/INSTALL.md)**
 
 ---
 
@@ -41,7 +42,7 @@ Detailed instructions, troubleshooting, and update steps: **[INSTALL.md](https:/
 
 - Have a **normal website tab** open (e.g. Gmail, Wikipedia) — the overlay won’t run on `chrome://` pages.
 - Chrome may warn you about **developer mode extensions**. That’s normal until the store version is available.
-- **Internet required** for fetching artwork from The Met (first break may take a moment to load).
+- **Internet required** for fetching discoveries (first break may take a moment to load).
 
 ---
 
@@ -55,17 +56,17 @@ Detailed instructions, troubleshooting, and update steps: **[INSTALL.md](https:/
 
 ## Attribution
 
-Artworks courtesy of **The Metropolitan Museum of Art**, via the [Open Access](https://www.metmuseum.org/about-the-met/policies-and-documents/open-access) program.
+Historical facts are sourced through The Black History API. On-screen image credit follows the matched archival source (for example Wikimedia Commons creator/license). Imagery is rights-checked with on-screen credit where required.
 
 ---
 
 ## Privacy
 
 No account. No ads. Timer and task data stay on your device.  
-[Privacy policy](https://airfan003.github.io/PaintPomodoro/privacy.html)
+[Privacy policy](./privacy.html)
 
 ---
 
 ## Feedback welcome
 
-Trying this build? Issues and suggestions: [GitHub Issues](https://github.com/AirFan003/PaintPomodoro/issues)
+Trying this build? Issues and suggestions: [GitHub Issues](https://github.com/mitchelldawkinsjr/Black-History-Pomodoro/issues)

@@ -1,13 +1,19 @@
-import { pickDailyArtwork } from './met-api.js';
+import {
+  fetchNextDiscovery,
+  isDiscoveryArtwork,
+  toPaintArtwork,
+} from './history-api-client.js';
 import {
   ensureCurrentArtworkRecorded,
   getSeenObjectIDs,
   recordSeenArtwork,
 } from './artwork-history.js';
 import { MARKS_VERSION, generateMarksFromImageUrl } from './mark-generator.js';
+import { MAX_DISCOVERY_BREAKS } from '../shared/config.js';
 
-export const DAILY_ART_KEY = 'paintPomodoroDailyArt';
-export const MAX_DAILY_BREAKS = 10;
+export const DAILY_ART_KEY = 'blackHistoryDailyArt';
+const LEGACY_DAILY_ART_KEY = 'paintPomodoroDailyArt';
+export const MAX_DAILY_BREAKS = MAX_DISCOVERY_BREAKS;
 
 export function getTodayKey() {
   return new Date().toLocaleDateString('en-CA');
@@ -17,7 +23,12 @@ export function getArtworkImageUrl(artwork) {
   if (!artwork) {
     return null;
   }
-  return artwork.primaryImage || artwork.primaryImageSmall || null;
+  return (
+    artwork.primaryImage ||
+    artwork.primaryImageSmall ||
+    artwork.discovery?.visual?.imageUrl ||
+    null
+  );
 }
 
 export function createDefaultDailyArt() {
@@ -35,8 +46,14 @@ export function createDefaultDailyArt() {
 }
 
 export async function loadDailyArt() {
-  const stored = await chrome.storage.local.get(DAILY_ART_KEY);
-  const art = stored[DAILY_ART_KEY] ?? createDefaultDailyArt();
+  const stored = await chrome.storage.local.get([DAILY_ART_KEY, LEGACY_DAILY_ART_KEY]);
+  let raw = stored[DAILY_ART_KEY];
+  if (!raw && stored[LEGACY_DAILY_ART_KEY]) {
+    raw = stored[LEGACY_DAILY_ART_KEY];
+    await chrome.storage.local.set({ [DAILY_ART_KEY]: raw });
+    await chrome.storage.local.remove(LEGACY_DAILY_ART_KEY);
+  }
+  const art = raw ?? createDefaultDailyArt();
   return ensureDailyArtCurrent(art);
 }
 
@@ -45,12 +62,16 @@ export async function saveDailyArt(art) {
   return art;
 }
 
+/**
+ * Calendar day resets tasks elsewhere. Discovery progress persists across days.
+ */
 export function ensureDailyArtCurrent(art) {
   const today = getTodayKey();
   const totalBreakCount = art.totalBreakCount ?? art.breakCount ?? 0;
   if (art.dateKey !== today) {
     return {
-      ...createDefaultDailyArt(),
+      ...art,
+      dateKey: today,
       totalBreakCount,
     };
   }
@@ -60,7 +81,6 @@ export function ensureDailyArtCurrent(art) {
   return art;
 }
 
-/** Maps a lifetime break number to the 1–10 cycle for the current painting. */
 export function getPaintingBreakNumber(breakNumber, maxBreaks = MAX_DAILY_BREAKS) {
   if (breakNumber < 1) {
     return 1;
@@ -70,34 +90,38 @@ export function getPaintingBreakNumber(breakNumber, maxBreaks = MAX_DAILY_BREAKS
 
 export async function ensureDailyArtReset() {
   const art = await loadDailyArt();
-  if (art.dateKey === getTodayKey()) {
-    return art;
+  const current = ensureDailyArtCurrent(art);
+  if (current !== art) {
+    await saveDailyArt(current);
   }
-  const fresh = createDefaultDailyArt();
-  await saveDailyArt(fresh);
-  return fresh;
+  return current;
 }
 
 let artworkFetchPromise = null;
 
-async function pickFreshArtwork(seed, extraExcludeIds = []) {
+async function pickFreshArtwork(_seed, extraExcludeIds = []) {
   const seen = await getSeenObjectIDs();
-  const excludeObjectIDs = [...new Set([...seen, ...extraExcludeIds])];
-  const artwork = await pickDailyArtwork(String(seed), { excludeObjectIDs });
-  await recordSeenArtwork(artwork.objectID);
-  return artwork;
+  const exclude = [...new Set([...seen, ...extraExcludeIds].map(String))];
+  const discovery = await fetchNextDiscovery(exclude);
+  await recordSeenArtwork(discovery.id);
+  return toPaintArtwork(discovery);
 }
 
-function marksNeedRegeneration(art) {
-  if (!art.artwork?.objectID) {
+function hasUsableDiscovery(art) {
+  return isDiscoveryArtwork(art?.artwork);
+}
+
+function marksNeedRegeneration(art, maxBreaks = MAX_DAILY_BREAKS) {
+  if (!hasUsableDiscovery(art)) {
     return false;
   }
   if (!art.marks?.marks?.length) {
     return true;
   }
   return (
-    art.marks.objectID !== art.artwork.objectID ||
-    art.marks.version !== MARKS_VERSION
+    String(art.marks.objectID) !== String(art.artwork.objectID) ||
+    art.marks.version !== MARKS_VERSION ||
+    Number(art.marks.maxBreaks) !== Number(maxBreaks)
   );
 }
 
@@ -108,63 +132,75 @@ function canvasMatchesArtwork(art) {
   if (!art.artwork?.objectID) {
     return false;
   }
-  return art.canvasArtworkId === art.artwork.objectID;
+  return String(art.canvasArtworkId) === String(art.artwork.objectID);
 }
 
-async function ensureDailyMarks(art) {
-  if (!art.artwork?.objectID || !marksNeedRegeneration(art)) {
+async function ensureDailyMarks(art, maxBreaks = MAX_DAILY_BREAKS) {
+  const periods = Math.max(1, Number(maxBreaks) || MAX_DAILY_BREAKS);
+  if (!hasUsableDiscovery(art) || !marksNeedRegeneration(art, periods)) {
     return art;
   }
 
   const imageUrl = getArtworkImageUrl(art.artwork);
   if (!imageUrl) {
-    throw new Error('Artwork is missing an image URL');
+    console.warn('[BlackHistoryPomodoro] Discovery is missing an image URL');
+    return art;
   }
 
-  const marks = await generateMarksFromImageUrl(
-    imageUrl,
-    art.artwork.objectID,
-    MAX_DAILY_BREAKS,
-  );
+  try {
+    const marks = await generateMarksFromImageUrl(
+      imageUrl,
+      art.artwork.objectID,
+      periods,
+    );
 
-  const canvasChanged = art.canvasArtworkId && art.canvasArtworkId !== art.artwork.objectID;
-  const updated = {
-    ...art,
-    marks,
-    ...(canvasChanged
-      ? { canvasDataUrl: null, canvasArtworkId: null, breakCount: 0 }
-      : {}),
-  };
-  await saveDailyArt(updated);
-  return updated;
+    const canvasChanged =
+      art.canvasArtworkId && String(art.canvasArtworkId) !== String(art.artwork.objectID);
+    const updated = {
+      ...art,
+      marks,
+      ...(canvasChanged
+        ? { canvasDataUrl: null, canvasArtworkId: null, breakCount: 0 }
+        : {}),
+    };
+    await saveDailyArt(updated);
+    return updated;
+  } catch (error) {
+    // Discovery UI should still work even if mark sampling fails.
+    console.warn('[BlackHistoryPomodoro] Mark generation failed; keeping discovery', error);
+    return art;
+  }
 }
 
-const SW_SESSION_KEY = 'paintPomodoroSwSession';
+const SW_SESSION_KEY = 'blackHistorySwSession';
+const LEGACY_SW_SESSION_KEY = 'paintPomodoroSwSession';
 
 /**
- * Rotate artwork once per extension session (install, update, or reload).
- * Session storage clears on reload, but persists across service worker sleep.
+ * Spec: do NOT rotate discovery on extension reload.
+ * Only record a session marker so we can detect restarts without replacing progress.
  */
 export async function rotateArtworkIfNewSession() {
-  const stored = await chrome.storage.session.get(SW_SESSION_KEY);
-  if (stored[SW_SESSION_KEY]) {
+  const stored = await chrome.storage.session.get([SW_SESSION_KEY, LEGACY_SW_SESSION_KEY]);
+  if (stored[SW_SESSION_KEY] || stored[LEGACY_SW_SESSION_KEY]) {
+    if (!stored[SW_SESSION_KEY] && stored[LEGACY_SW_SESSION_KEY]) {
+      await chrome.storage.session.set({ [SW_SESSION_KEY]: stored[LEGACY_SW_SESSION_KEY] });
+      await chrome.storage.session.remove(LEGACY_SW_SESSION_KEY);
+    }
     return false;
   }
-
   const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   await chrome.storage.session.set({ [SW_SESSION_KEY]: sessionId });
-
-  const previous = await loadDailyArt();
-  await rotateForExtensionLoad(sessionId, previous.artwork?.objectID ?? null);
-  return true;
+  return false;
 }
 
-export async function rotateToNextPainting() {
+export async function rotateToNextPainting(maxBreaks = MAX_DAILY_BREAKS) {
   artworkFetchPromise = null;
   const previous = await loadDailyArt();
   const seed = `${getTodayKey()}-${Date.now()}`;
-
-  const artwork = await pickFreshArtwork(seed, previous.artwork?.objectID ? [previous.artwork.objectID] : []);
+  const artwork = await pickFreshArtwork(
+    seed,
+    previous.artwork?.objectID ? [String(previous.artwork.objectID)] : [],
+  );
 
   const fresh = {
     ...createDefaultDailyArt(),
@@ -180,43 +216,34 @@ export async function rotateToNextPainting() {
   };
 
   await saveDailyArt(fresh);
-  return ensureDailyMarks(fresh);
+  return ensureDailyMarks(fresh, maxBreaks);
 }
 
-/** Pick a fresh artwork — used on extension install/reload. */
 export async function rotateForExtensionLoad(seed, previousObjectID = null) {
-  artworkFetchPromise = null;
-
-  const artwork = await pickFreshArtwork(
-    seed,
-    previousObjectID ? [previousObjectID] : [],
-  );
-
-  const previous = await loadDailyArt();
-
-  const fresh = {
-    ...createDefaultDailyArt(),
-    dateKey: getTodayKey(),
-    artwork,
-    selectionSeed: String(seed),
-    extensionSeed: String(seed),
-    totalBreakCount: previous.totalBreakCount ?? previous.breakCount ?? 0,
-    breakCount: 0,
-    canvasDataUrl: null,
-    canvasArtworkId: null,
-    marks: null,
-  };
-
-  await saveDailyArt(fresh);
-  return ensureDailyMarks(fresh);
+  // Kept for compatibility; active lifecycle no longer auto-rotates on load.
+  return rotateToNextPainting();
 }
 
-export async function ensureDailyArtwork() {
+export async function ensureDailyArtwork(maxBreaks = MAX_DAILY_BREAKS) {
+  const periods = Math.max(1, Number(maxBreaks) || MAX_DAILY_BREAKS);
   const art = await ensureDailyArtReset();
-  if (art.artwork?.objectID) {
+  if (hasUsableDiscovery(art)) {
     await ensureCurrentArtworkRecorded(art.artwork.objectID);
   }
-  if (art.artwork?.objectID && art.marks?.marks?.length && !marksNeedRegeneration(art)) {
+  if (
+    hasUsableDiscovery(art) &&
+    art.marks?.marks?.length &&
+    !marksNeedRegeneration(art, periods)
+  ) {
+    if (art.discoveryLoading || art.discoveryError) {
+      const cleared = {
+        ...art,
+        discoveryLoading: false,
+        discoveryError: null,
+      };
+      await saveDailyArt(cleared);
+      return cleared;
+    }
     return art;
   }
 
@@ -224,16 +251,40 @@ export async function ensureDailyArtwork() {
     artworkFetchPromise = (async () => {
       try {
         let current = await ensureDailyArtReset();
+        current = {
+          ...current,
+          discoveryLoading: true,
+          discoveryError: null,
+        };
+        await saveDailyArt(current);
 
-        if (!current.artwork?.objectID) {
-          const seed = current.extensionSeed ?? current.selectionSeed ?? `${getTodayKey()}-${Date.now()}`;
+        // Drop legacy Met Museum payloads that block Black History discovery fetches.
+        if (current.artwork && !hasUsableDiscovery(current)) {
+          current = {
+            ...current,
+            artwork: null,
+            marks: null,
+            canvasDataUrl: null,
+            canvasArtworkId: null,
+            breakCount: 0,
+          };
+          await saveDailyArt(current);
+        }
+
+        if (!hasUsableDiscovery(current)) {
+          const seed =
+            current.extensionSeed ?? current.selectionSeed ?? `${getTodayKey()}-${Date.now()}`;
           const artwork = await pickFreshArtwork(seed);
           current = await ensureDailyArtReset();
-          if (!current.artwork?.objectID) {
+          if (!hasUsableDiscovery(current)) {
             current = {
               ...current,
               artwork,
               selectionSeed: String(seed),
+              marks: null,
+              canvasDataUrl: null,
+              canvasArtworkId: null,
+              breakCount: 0,
             };
             await saveDailyArt(current);
           } else {
@@ -241,7 +292,22 @@ export async function ensureDailyArtwork() {
           }
         }
 
-        return ensureDailyMarks(current);
+        const withMarks = await ensureDailyMarks(current, periods);
+        const ready = {
+          ...withMarks,
+          discoveryLoading: false,
+          discoveryError: null,
+        };
+        await saveDailyArt(ready);
+        return ready;
+      } catch (error) {
+        const failed = await loadDailyArt();
+        await saveDailyArt({
+          ...failed,
+          discoveryLoading: false,
+          discoveryError: error?.message || 'Could not load today’s discovery',
+        });
+        throw error;
       } finally {
         artworkFetchPromise = null;
       }
@@ -263,16 +329,36 @@ export async function clearDailyCanvas() {
   return cleared;
 }
 
-export async function saveDailyCanvas(dataUrl, breakNumber) {
+export async function saveDailyCanvas(dataUrl, breakNumber, maxBreaks = MAX_DAILY_BREAKS) {
+  return completeBreakProgress(breakNumber, dataUrl, maxBreaks);
+}
+
+/**
+ * Advance discovery progress for a completed/skipped break.
+ * Canvas data is optional — skips still count so clue unlocks keep moving.
+ */
+export async function completeBreakProgress(
+  breakNumber,
+  dataUrl = null,
+  maxBreaks = MAX_DAILY_BREAKS,
+) {
+  if (!breakNumber || breakNumber < 1) {
+    return ensureDailyArtReset();
+  }
+
   const art = await ensureDailyArtReset();
   const updated = {
     ...art,
     dateKey: getTodayKey(),
-    totalBreakCount: breakNumber,
-    breakCount: getPaintingBreakNumber(breakNumber),
-    canvasDataUrl: dataUrl,
-    canvasArtworkId: art.artwork?.objectID ?? null,
+    totalBreakCount: Math.max(breakNumber, art.totalBreakCount ?? art.breakCount ?? 0),
+    breakCount: getPaintingBreakNumber(breakNumber, maxBreaks),
   };
+
+  if (typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+    updated.canvasDataUrl = dataUrl;
+    updated.canvasArtworkId = art.artwork?.objectID ?? null;
+  }
+
   await saveDailyArt(updated);
   return updated;
 }
