@@ -1,0 +1,11 @@
+.git
+.DS_Store
+.env
+**/node_modules
+**/dist
+paint-pomodoro-1.0.0.zip
+**/*.md
+docs
+server/test
+server/data
+**/.git

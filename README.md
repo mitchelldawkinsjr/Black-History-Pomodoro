@@ -1,6 +1,10 @@
-# Paint Pomodoro
+# Black History Pomodoro
 
-A browser extension Pomodoro timer that reveals public-domain paintings from The Metropolitan Museum of Art in watercolor when you take a break.
+A Chrome MV3 Pomodoro timer that reveals sourced Black history facts and rights-checked archival images in watercolor across ten earned focus sessions.
+
+Production API: [docs/deploy.md](docs/deploy.md) (`https://blackhistory.360web.cloud`). Setup: [docs/SETUP.md](docs/SETUP.md).
+
+Upstream inspiration: [PaintPomodoro](https://github.com/AirFan003/PaintPomodoro).
 
 ## Features
 

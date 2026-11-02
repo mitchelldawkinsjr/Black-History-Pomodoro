@@ -1,0 +1,43 @@
+# Production stack (VPS).
+# Joins 360ws-network so Nginx Proxy Manager can reach black-history-pomodoro-app:8080.
+# Public host: https://blackhistory.360web.cloud
+# Loopback health check: 127.0.0.1:8037
+
+name: black-history-pomodoro
+
+services:
+  app:
+    build: .
+    container_name: black-history-pomodoro-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PUBLISH_PORT:-8037}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "8080"
+      PUBLIC_API_ORIGIN: "https://blackhistory.360web.cloud"
+      MEDIA_CACHE_DIR: "/data/cache/media"
+      FALLBACKS_PATH: "/app/data/reviewed-fallbacks.json"
+    volumes:
+      - media-cache:/data/cache/media
+    networks:
+      - proxy
+    labels:
+      - "com.360ws.type=docker-app"
+      - "com.360ws.app=black-history-pomodoro"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  media-cache:
+
+networks:
+  proxy:
+    external: true
+    name: 360ws-network

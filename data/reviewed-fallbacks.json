@@ -1,0 +1,130 @@
+[
+  {
+    "id": "bhf-fallback-douglass-001",
+    "provider": "curated",
+    "providerFactId": "curated-douglass-001",
+    "factText": "Frederick Douglass (c. 1818–1895) escaped slavery and became a leading abolitionist orator, writer, and advocate for equal rights.",
+    "people": ["Frederick Douglass"],
+    "tags": ["Abolition", "Oratory", "Civil Rights"],
+    "eventDate": null,
+    "source": {
+      "label": "National Park Service — Frederick Douglass National Historic Site",
+      "url": "https://www.nps.gov/frdo/learn/historyculture/frederickdouglass.htm",
+      "providerUrl": null
+    },
+    "visual": {
+      "assetId": "asset-douglass-001",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Frederick_Douglass_%28c1879%29.jpg/800px-Frederick_Douglass_%28c1879%29.jpg",
+      "title": "Frederick Douglass (c. 1879)",
+      "alt": "Studio portrait photograph of Frederick Douglass, circa 1879",
+      "creator": "George Kendall Warren (attributed)",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Frederick_Douglass_(c1879).jpg",
+      "license": "Public Domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "credit": "Wikimedia Commons — public domain portrait",
+      "depictionType": "photo",
+      "depictsSubject": true,
+      "width": 800,
+      "height": 1012,
+      "reviewedAt": "2026-11-02T00:00:00Z"
+    },
+    "generatedAt": "2026-11-02T00:00:00Z",
+    "schemaVersion": 1
+  },
+  {
+    "id": "bhf-fallback-tubman-001",
+    "provider": "curated",
+    "providerFactId": "curated-tubman-001",
+    "factText": "Harriet Tubman (c. 1822–1913) escaped slavery and guided many others to freedom on the Underground Railroad; she later served as a Union scout and nurse.",
+    "people": ["Harriet Tubman"],
+    "tags": ["Underground Railroad", "Abolition", "Civil War"],
+    "eventDate": null,
+    "source": {
+      "label": "National Park Service — Harriet Tubman Underground Railroad",
+      "url": "https://www.nps.gov/hatu/learn/historyculture/harriet-tubman.htm",
+      "providerUrl": null
+    },
+    "visual": {
+      "assetId": "asset-tubman-001",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Harriet_Tubman_by_Squyer%2C_NPG%2C_c1885.jpg/800px-Harriet_Tubman_by_Squyer%2C_NPG%2C_c1885.jpg",
+      "title": "Harriet Tubman by Squyer, c. 1885",
+      "alt": "Photograph of Harriet Tubman by Horatio Seymour Squyer, circa 1885",
+      "creator": "Horatio Seymour Squyer",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Harriet_Tubman_by_Squyer,_NPG,_c1885.jpg",
+      "license": "Public Domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "credit": "National Portrait Gallery / Wikimedia Commons — public domain",
+      "depictionType": "photo",
+      "depictsSubject": true,
+      "width": 800,
+      "height": 1093,
+      "reviewedAt": "2026-11-02T00:00:00Z"
+    },
+    "generatedAt": "2026-11-02T00:00:00Z",
+    "schemaVersion": 1
+  },
+  {
+    "id": "bhf-fallback-carver-001",
+    "provider": "curated",
+    "providerFactId": "curated-carver-001",
+    "factText": "George Washington Carver (c. 1864–1943) was an agricultural scientist at Tuskegee Institute whose research advanced crop rotation and alternative uses for Southern crops.",
+    "people": ["George Washington Carver"],
+    "tags": ["Science", "Agriculture", "Education"],
+    "eventDate": null,
+    "source": {
+      "label": "National Park Service — George Washington Carver National Monument",
+      "url": "https://www.nps.gov/gwca/learn/historyculture/index.htm",
+      "providerUrl": null
+    },
+    "visual": {
+      "assetId": "asset-carver-001",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/George_Washington_Carver_c1910.jpg/800px-George_Washington_Carver_c1910.jpg",
+      "title": "George Washington Carver, c. 1910",
+      "alt": "Photograph of George Washington Carver, circa 1910",
+      "creator": null,
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:George_Washington_Carver_c1910.jpg",
+      "license": "Public Domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "credit": "Wikimedia Commons — public domain photograph",
+      "depictionType": "photo",
+      "depictsSubject": true,
+      "width": 800,
+      "height": 1124,
+      "reviewedAt": "2026-11-02T00:00:00Z"
+    },
+    "generatedAt": "2026-11-02T00:00:00Z",
+    "schemaVersion": 1
+  },
+  {
+    "id": "bhf-fallback-truth-001",
+    "provider": "curated",
+    "providerFactId": "curated-truth-001",
+    "factText": "Sojourner Truth (c. 1797–1883) was an abolitionist and women's rights advocate; her 1851 speech later known as \"Ain't I a Woman?\" became a landmark of American reform oratory.",
+    "people": ["Sojourner Truth"],
+    "tags": ["Abolition", "Women's Rights", "Oratory"],
+    "eventDate": "1851",
+    "source": {
+      "label": "Library of Congress — Sojourner Truth",
+      "url": "https://www.loc.gov/item/2018645050/",
+      "providerUrl": null
+    },
+    "visual": {
+      "assetId": "asset-truth-001",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Sojourner_Truth%2C_1864.jpg/800px-Sojourner_Truth%2C_1864.jpg",
+      "title": "Sojourner Truth, 1864",
+      "alt": "Carte-de-visite photograph of Sojourner Truth, 1864",
+      "creator": null,
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Sojourner_Truth,_1864.jpg",
+      "license": "Public Domain",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "credit": "Wikimedia Commons — public domain photograph",
+      "depictionType": "photo",
+      "depictsSubject": true,
+      "width": 800,
+      "height": 1241,
+      "reviewedAt": "2026-11-02T00:00:00Z"
+    },
+    "generatedAt": "2026-11-02T00:00:00Z",
+    "schemaVersion": 1
+  }
+]

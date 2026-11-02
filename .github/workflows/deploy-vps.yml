@@ -1,0 +1,136 @@
+# Deploy to mitch-cloud. Push to main syncs this repo to the VPS and rebuilds the container.
+# Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY. Optional: VPS_SSH_PORT, SLACK_WEBHOOK.
+name: Deploy to mitch-cloud
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy app to mitch-cloud
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add server to known hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VPS_HOST}" ]; then
+            echo "::error::Missing required secret VPS_HOST."
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          touch ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          for attempt in 1 2 3; do
+            if ssh-keyscan -T 10 -p "${VPS_SSH_PORT}" -H "${VPS_HOST}" >> ~/.ssh/known_hosts; then
+              sort -u ~/.ssh/known_hosts -o ~/.ssh/known_hosts
+              exit 0
+            fi
+
+            echo "ssh-keyscan attempt ${attempt}/3 failed for ${VPS_HOST}:${VPS_SSH_PORT}; retrying..."
+            sleep 5
+          done
+
+          echo "::error::Unable to scan SSH host key for ${VPS_HOST}:${VPS_SSH_PORT}. Verify VPS_HOST, VPS_SSH_PORT, DNS, and firewall access from GitHub Actions."
+          exit 1
+
+      - name: Deploy to mitch-cloud
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VPS_HOST}" ]; then
+            echo "::error::Missing required secret VPS_HOST."
+            exit 1
+          fi
+
+          if [ -z "${VPS_USER}" ]; then
+            echo "::error::Missing required secret VPS_USER."
+            exit 1
+          fi
+
+          ssh -p "${VPS_SSH_PORT}" "${VPS_USER}@${VPS_HOST}" << 'EOF'
+            set -e
+            mkdir -p /opt/360ws/clients/docker-app/black-history-pomodoro
+          EOF
+
+          rsync -az --delete \
+            -e "ssh -p ${VPS_SSH_PORT}" \
+            --exclude '.git' \
+            --exclude '.DS_Store' \
+            --exclude '.env' \
+            --exclude 'node_modules' \
+            --exclude 'server/node_modules' \
+            --exclude 'server/dist' \
+            ./ "${VPS_USER}@${VPS_HOST}:/opt/360ws/clients/docker-app/black-history-pomodoro/"
+
+          ssh -p "${VPS_SSH_PORT}" "${VPS_USER}@${VPS_HOST}" << 'EOF'
+            set -e
+            cd /opt/360ws/clients/docker-app/black-history-pomodoro
+
+            docker network ls --format '{{.Name}}' | grep -q '^360ws-network$' || docker network create 360ws-network
+
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            echo "Waiting for black-history-pomodoro-app..."
+            sleep 10
+
+            port=$(docker port black-history-pomodoro-app 8080 | head -1 | awk -F: '{print $NF}')
+            max_attempts=30
+            attempt=0
+            while [ $attempt -lt $max_attempts ]; do
+              health=$(docker inspect --format '{{.State.Health.Status}}' black-history-pomodoro-app 2>/dev/null || echo missing)
+              if [ "$health" = "healthy" ] && curl -fsS "http://127.0.0.1:${port}/healthz" -o /dev/null; then
+                echo "Health check passed on port ${port}."
+                exit 0
+              fi
+              attempt=$((attempt + 1))
+              echo "Health check attempt $attempt/$max_attempts (status: $health), retrying..."
+              sleep 2
+            done
+
+            echo "Health check failed after $max_attempts attempts."
+            docker compose -f docker-compose.prod.yml logs app
+            exit 1
+          EOF
+
+      - name: Notify Slack on success
+        if: success() && env.SLACK_WEBHOOK != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"✅ black-history-pomodoro deployed successfully to mitch-cloud (blackhistory.360web.cloud)\"}" \
+            "$SLACK_WEBHOOK"
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_WEBHOOK != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"❌ black-history-pomodoro deployment to mitch-cloud failed\"}" \
+            "$SLACK_WEBHOOK"
