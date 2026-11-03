@@ -166,15 +166,27 @@ body.screensaver.show-chrome * {
   background: var(--color-accent-hover);
 }
 
-.boot-btn-ghost,
-.chrome-btn {
+.boot-btn-ghost {
   background: transparent;
   color: var(--color-ink);
 }
 
-.boot-btn-ghost:hover,
-.chrome-btn:hover {
+.boot-btn-ghost:hover {
   background: var(--color-accent-fill);
+}
+
+/* Wall chrome: solid melanin pills so controls stay readable on cream paper. */
+.chrome-btn {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 1px solid rgba(218, 183, 164, 0.42);
+  box-shadow: 0 1px 0 rgba(20, 14, 11, 0.35);
+}
+
+.chrome-btn:hover {
+  background: var(--color-surface-raised);
+  border-color: var(--color-accent-strong);
+  color: var(--color-ink);
 }
 
 .chrome-bar {
