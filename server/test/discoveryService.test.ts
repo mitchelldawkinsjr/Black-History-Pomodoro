@@ -120,7 +120,7 @@ test('live discovery: matched image, cached by id, expires after TTL', async () 
   assert.equal(service.get('bha-f1'), null);
 });
 
-test('live discovery without a known subject skips generic and uses a reviewed fallback image', async () => {
+test('live discovery without a known subject still serves the fact with a generic image', async () => {
   const source = new StubSource(() => ({
     Results: [
       {
@@ -135,9 +135,28 @@ test('live discovery without a known subject skips generic and uses a reviewed f
   const commons = new StubCommons([commonsImage()]);
   const { service } = await makeService({ source, commons });
   const d = await service.next();
-  assert.equal(d.provider, 'curated');
-  assert.equal(d.visual.depictsSubject, true);
+  assert.equal(d.provider, 'blackhistoryapi');
+  assert.equal(d.id, 'bha-f2');
+  assert.equal(d.factText, 'In 1961 a new institute for the arts was founded.');
+  assert.equal(d.visual.depictsSubject, false);
+  assert.equal(d.visual.depictionType, 'generic');
+  assert.match(d.visual.imageUrl, /\/v1\/media\//);
   assert.equal(commons.queries.length, 0, 'no Commons search when subject is unknown');
+  assert.equal(source.calls, 3, 'keeps looking for a portrait before using the generic image');
+});
+
+test('a verified portrait is preferred over an earlier fact that only has a generic image', async () => {
+  const source = new StubSource(() => ({
+    Results: [
+      { _id: 'plain', text: 'In 1961 a new institute for the arts was founded.', source: 'Test Archive' },
+      { _id: 'portrait', text: 'Test Person founded a school in 1867.', people: ['Test Person'], source: 'Test Archive' },
+    ],
+  }));
+  const { service } = await makeService({ source, commons: new StubCommons([commonsImage()]) });
+  const d = await service.next();
+  assert.equal(d.id, 'bha-portrait');
+  assert.equal(d.visual.depictsSubject, true);
+  assert.equal(source.calls, 1);
 });
 
 test('live discovery honors exclude and moves on to a different fact', async () => {

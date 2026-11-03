@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import { extractFactCandidates, type NormalizedFact } from '../providers/blackHistoryAdapter.js';
 import { UpstreamError, type FactSource } from '../providers/blackHistoryClient.js';
 import {
   ApiError,
@@ -7,6 +6,7 @@ import {
   ReviewedFallbackFileSchema,
   type HistoricalDiscovery,
 } from '../schemas/discovery.js';
+import { runFactPipeline, type IllustratedFact } from './factPipeline.js';
 import type { ImageMatcher } from './imageMatcher.js';
 import type { MediaStore } from './mediaStore.js';
 
@@ -269,23 +269,32 @@ export class DiscoveryService {
     const source = this.source!;
     let anyValid = false;
     let lastError: unknown;
+    let generic: IllustratedFact | null = null;
+
     for (let i = 0; i < UPSTREAM_FETCHES_PER_REQUEST; i++) {
-      let facts: NormalizedFact[];
+      let result;
       try {
-        facts = extractFactCandidates(await source.fetchRandomFact());
+        result = await runFactPipeline(await source.fetchRandomFact(), this.matcher, (fact) =>
+          excluded.has(`${UPSTREAM_ID_PREFIX}${fact.providerFactId}`),
+        );
       } catch (err) {
         lastError = err;
         continue;
       }
-      if (facts.length > 0) anyValid = true;
-      for (const fact of facts) {
-        if (excluded.has(`${UPSTREAM_ID_PREFIX}${fact.providerFactId}`)) continue;
-        const discovery = await this.buildDiscovery(fact);
-        if (!discovery) continue;
-        this.cache.set(discovery.id, { value: discovery, expiresAt: this.now() + this.ttlMs });
-        return discovery;
+      if (result.hadFacts) anyValid = true;
+      const illustrated = result.illustrated;
+      if (!illustrated) continue;
+      if (illustrated.image.visual.depictsSubject) {
+        const discovery = this.publish(illustrated);
+        if (discovery) return discovery;
+        continue;
       }
-      // Repeats of excluded ids are expected occasionally with a random endpoint; try again.
+      if (!generic) generic = illustrated;
+    }
+
+    if (generic) {
+      const discovery = this.publish(generic);
+      if (discovery) return discovery;
     }
     if (!anyValid) {
       throw lastError instanceof Error ? lastError : new UpstreamError('Upstream returned no usable facts');
@@ -293,18 +302,11 @@ export class DiscoveryService {
     return null;
   }
 
-  private async buildDiscovery(fact: NormalizedFact): Promise<HistoricalDiscovery | null> {
+  /** Registers the pipeline image and caches the discovery. Every published fact has an image. */
+  private publish(illustrated: IllustratedFact): HistoricalDiscovery | null {
+    const { fact, image } = illustrated;
     try {
-      const match = await this.matcher.match({ text: fact.factText, people: fact.people });
-      // Prefer facts we can illustrate with a verified subject image; keep trying upstream.
-      if (!match.visual.depictsSubject) {
-        this.warn(
-          `discovery ${fact.providerFactId} skipped: no verified subject image` +
-            (fact.people[0] ? ` for ${fact.people[0]}` : ' (no people)'),
-        );
-        return null;
-      }
-      const assetId = this.mediaStore.register(match.sourceUrl);
+      const assetId = this.mediaStore.register(image.sourceUrl);
       const candidate: HistoricalDiscovery = {
         id: `${UPSTREAM_ID_PREFIX}${fact.providerFactId}`,
         provider: 'blackhistoryapi',
@@ -314,11 +316,13 @@ export class DiscoveryService {
         tags: fact.tags,
         eventDate: fact.eventDate,
         source: fact.source,
-        visual: { ...match.visual, assetId, imageUrl: this.publicMediaUrl(assetId) },
+        visual: { ...image.visual, assetId, imageUrl: this.publicMediaUrl(assetId) },
         generatedAt: new Date(this.now()).toISOString(),
         schemaVersion: 1,
       };
-      return HistoricalDiscoverySchema.parse(candidate);
+      const discovery = HistoricalDiscoverySchema.parse(candidate);
+      this.cache.set(discovery.id, { value: discovery, expiresAt: this.now() + this.ttlMs });
+      return discovery;
     } catch (err) {
       this.warn(`discovery ${fact.providerFactId} rejected`, err);
       return null;
