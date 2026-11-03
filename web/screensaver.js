@@ -532,7 +532,10 @@ async function runDiscovery(api, token) {
   const label = discovery.people?.[0] || discovery.tags?.[0] || 'a new story';
   setBootStatus(`Preparing watercolor for ${label}…`);
   dismissBoot();
+  // Clear both flags. Next discovery sets skipLayer=true, and the shared sleep()
+  // helper treats that as an abort — which was falsely failing mark generation.
   skipDiscovery = false;
+  skipLayer = false;
 
   let marks = null;
   try {
@@ -542,8 +545,8 @@ async function runDiscovery(api, token) {
         discovery.id,
         MAX_DISCOVERY_BREAKS,
       ),
-      sleep(20000, token).then(() => {
-        throw new Error('Timed out preparing watercolor marks');
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timed out preparing watercolor marks')), 20000);
       }),
     ]);
   } catch (error) {
