@@ -1,10 +1,10 @@
 /* Black History Live Reveal — offline shell for wall-display PWA installs. */
-const CACHE = 'bhp-screensaver-v4';
+const CACHE = 'bhp-screensaver-v5';
 const SHELL = [
   '/',
   '/index.html',
   '/screensaver.css',
-  '/screensaver.js?v=20261102d',
+  '/screensaver.js?v=20261103a',
   '/screensaver.js',
   '/manifest.webmanifest',
   '/overlay/overlay.css',

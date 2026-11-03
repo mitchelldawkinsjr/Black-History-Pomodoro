@@ -12,6 +12,8 @@ import { createColorAgents } from './color-agents.js';
 const DEFAULT_PAINT_MS = 20 * 1000;
 const PAINT_OUT_MS = 4200;
 const MAX_FALLBACK_POOLS = 64;
+/** Warm cream paper — lets artwork color fields read against a tinted ground. */
+const PAPER_RGB = [247, 241, 232];
 
 export function createPaintSketch(container, { onPaintInComplete, onPaintOutComplete, onPaintOutProgress, onReady } = {}) {
   const api = {};
@@ -91,7 +93,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
       if (transparent) {
         wash.clear();
       } else {
-        wash.background(255, 255, 255);
+        wash.background(...PAPER_RGB);
       }
     }
 
@@ -115,7 +117,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
     function flattenWashForExport() {
       const flat = p.createGraphics(p.width, p.height);
       flat.noStroke();
-      flat.background(255);
+      flat.background(...PAPER_RGB);
       if (previousCanvasImage) {
         flat.image(previousCanvasImage, 0, 0, p.width, p.height);
       }
@@ -270,7 +272,7 @@ export function createPaintSketch(container, { onPaintInComplete, onPaintOutComp
 
       if (paperFade > 0) {
         p.noStroke();
-        p.fill(255, 255, 255, paperFade * overlayOpacity * 255);
+        p.fill(...PAPER_RGB, paperFade * overlayOpacity * 255);
         p.rect(0, 0, p.width, p.height);
       }
 
